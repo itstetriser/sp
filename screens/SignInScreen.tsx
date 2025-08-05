@@ -1,15 +1,18 @@
 import { useNavigation } from '@react-navigation/native';
 import * as Google from 'expo-auth-session/providers/google';
+import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import { GoogleAuthProvider, sendPasswordResetEmail, signInWithCredential, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import React, { useRef, useState } from 'react';
 import { Alert, Button, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth } from '../firebase';
+import { useTheme } from '../ThemeContext';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const SignInScreen = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -120,11 +123,12 @@ const SignInScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Sign In</Text>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <Text style={[styles.title, { color: theme.primaryText }]}>Sign In</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, color: theme.primaryText }]}
         placeholder="Email"
+        placeholderTextColor={theme.secondaryText}
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
@@ -134,8 +138,9 @@ const SignInScreen = () => {
         returnKeyType="next"
       />
       <TextInput
-        style={styles.input}
+        style={[styles.input, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, color: theme.primaryText }]}
         placeholder="Password"
+        placeholderTextColor={theme.secondaryText}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
@@ -150,7 +155,17 @@ const SignInScreen = () => {
         </View>
       ) : null}
 
-      <Button title={loading ? 'Signing In...' : 'Sign In'} onPress={handleSignIn} disabled={loading} />
+      <TouchableOpacity 
+        style={[styles.button, { backgroundColor: theme.primary }]} 
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          handleSignIn();
+        }}
+        disabled={loading}
+      >
+        <Text style={[styles.buttonText, { color: '#fff' }]}>{loading ? 'Signing In...' : 'Sign In'}</Text>
+      </TouchableOpacity>
+      
       <View style={{ height: 12 }} />
       {/* Google Sign-In Button */}
       <Button
@@ -172,8 +187,14 @@ const SignInScreen = () => {
         <Text style={styles.linkText}>Forgot Password?</Text>
       </TouchableOpacity>
       
-      <TouchableOpacity onPress={() => navigation.navigate('SignUp' as never)} style={styles.link}>
-        <Text style={styles.linkText}>Don't have an account? Sign Up</Text>
+      <TouchableOpacity 
+        style={styles.linkButton} 
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          navigation.navigate('SignUp' as never);
+        }}
+      >
+        <Text style={[styles.linkText, { color: theme.primary }]}>Don't have an account? Sign Up</Text>
       </TouchableOpacity>
 
       {/* Forgot Password Modal */}
@@ -184,17 +205,18 @@ const SignInScreen = () => {
         onRequestClose={() => setShowForgotPassword(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Reset Password</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardColor }]}>
+            <Text style={[styles.modalTitle, { color: theme.primaryText }]}>Reset Password</Text>
             
             {!emailSent ? (
               <>
-                <Text style={styles.modalText}>
+                <Text style={[styles.modalText, { color: theme.primaryText }]}>
                   Enter your email address and we'll send you a link to reset your password.
                 </Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: theme.backgroundColor, borderColor: theme.borderColor, color: theme.primaryText }]}
                   placeholder="Email"
+                  placeholderTextColor={theme.secondaryText}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   value={resetEmail}
@@ -298,6 +320,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
     color: '#4CAF50',
+  },
+  button: {
+    width: '100%',
+    maxWidth: 320,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  buttonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  linkButton: {
+    marginTop: 16,
   },
 });
 

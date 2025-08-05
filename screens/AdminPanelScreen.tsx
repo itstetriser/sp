@@ -1,14 +1,20 @@
 import { useNavigation } from '@react-navigation/native';
-import { addDoc, collection, deleteDoc, doc, DocumentData, getDocs, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, DocumentData, getDoc, getDocs, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Button, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebase';
+import { useFontSize } from '../FontSizeContext';
+import { useTheme } from '../ThemeContext';
 
 const ADMIN_EMAIL = 'tahirenes.kahraman@gmail.com'; // Change to your admin email
 
 const AdminPanelScreen = () => {
+  const { theme } = useTheme();
+  const { getFontSizeMultiplier } = useFontSize();
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const [lessons, setLessons] = useState<DocumentData[]>([]);
   const [newChapterTitle, setNewChapterTitle] = useState('');
   const [selectedLesson, setSelectedLesson] = useState<DocumentData | null>(null);
@@ -33,26 +39,69 @@ const AdminPanelScreen = () => {
   const [showBulkVocabModal, setShowBulkVocabModal] = useState(false);
   const [bulkVocabText, setBulkVocabText] = useState('');
   const [editingVocabFields, setEditingVocabFields] = useState({ word: '', type: '', definition: '', example1: '', example2: '', equivalent: '' });
+  const [showEmojiBulkModal, setShowEmojiBulkModal] = useState(false);
+  const [emojiBulkText, setEmojiBulkText] = useState('');
 
-  const user = auth.currentUser;
-  const isAdmin = user && user.email === ADMIN_EMAIL;
+  const getScaledFontSize = (baseSize: number) => {
+    const multiplier = getFontSizeMultiplier();
+    return Math.round(baseSize * multiplier);
+  };
 
   const fetchLessons = async () => {
-    setLoading(true);
+    setRefreshing(true);
     try {
       const querySnapshot = await getDocs(collection(db, 'lessons'));
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setLessons(data);
+      const lessonsData = querySnapshot.docs.map(doc => doc.data());
+      setLessons(lessonsData);
     } catch (error: any) {
       Alert.alert('Error', error.message);
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchLessons();
-  }, []);
+    const checkAdminStatus = async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const adminStatus = !!userData.isAdmin;
+            setIsAdmin(adminStatus);
+            setUser(userData);
+            
+            if (!adminStatus) {
+              Alert.alert('Access Denied', 'You do not have admin privileges.');
+              navigation.goBack();
+              return;
+            }
+            
+            // If admin check passes, fetch lessons
+            fetchLessons();
+          } else {
+            Alert.alert('Access Denied', 'User not found.');
+            navigation.goBack();
+            return;
+          }
+        } else {
+          Alert.alert('Access Denied', 'Please sign in to access admin panel.');
+          navigation.goBack();
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        Alert.alert('Error', 'Failed to verify admin status.');
+        navigation.goBack();
+        return;
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAdminStatus();
+  }, [navigation]);
 
   // When a lesson is selected, load its title and conversation into local state
   useEffect(() => {
@@ -332,6 +381,130 @@ const AdminPanelScreen = () => {
     }
   };
 
+  const handleBulkAddEmojiQuestions = async () => {
+    if (!emojiBulkText.trim()) return;
+    
+    try {
+      // Process the entire text as one string with multiple questions
+      const fullText = emojiBulkText.trim();
+      console.log('Processing full text length:', fullText.length);
+      
+      // Split by / to get individual dialogue blocks
+      const dialogueBlocks = fullText.split('/').filter(block => block.trim());
+      console.log('Total dialogue blocks found:', dialogueBlocks.length);
+      
+      let addedCount = 0;
+      const questionsArray = [];
+      
+      for (const block of dialogueBlocks) {
+        // Remove leading/trailing --- and split by ---
+        const cleanBlock = block.replace(/^---|---$/g, '').trim();
+        const parts = cleanBlock.split('---').filter(part => part.trim());
+        
+        if (parts.length < 6) {
+          console.log('Skipping incomplete dialogue block:', cleanBlock.substring(0, 50) + '...');
+          continue;
+        }
+        
+        const [
+          npcInfo,
+          correctAnswerWithEmoji,
+          incorrectAnswer1WithEmoji,
+          incorrectAnswer2WithEmoji,
+          incorrectAnswer3WithEmoji,
+          backgroundInfo
+        ] = parts;
+        
+        console.log('Processing dialogue block:', npcInfo.substring(0, 30) + '...');
+        
+        if (!npcInfo || !correctAnswerWithEmoji) {
+          console.log('Skipping incomplete dialogue');
+          continue;
+        }
+        
+        // Parse NPC info (name-sentence-icon)
+        const npcParts = npcInfo.split('-');
+        const npcName = npcParts[0]?.trim() || '';
+        const npcSentence = npcParts[1]?.trim() || '';
+        const npcIcon = npcParts[2]?.trim() || '';
+        
+        // Parse answer-emoji pairs
+        const parseAnswerEmoji = (text: string) => {
+          const lastDashIndex = text.lastIndexOf('-');
+          if (lastDashIndex === -1) return { answer: text.trim(), emoji: '' };
+          
+          const answer = text.substring(0, lastDashIndex).trim();
+          const emoji = text.substring(lastDashIndex + 1).trim();
+          return { answer, emoji };
+        };
+        
+        // Parse background info (background-mood-description-with-emoji)
+        const backgroundParts = backgroundInfo.split('-');
+        const backgroundText = backgroundParts.slice(0, -1).join('-').trim();
+        const moodWithEmoji = backgroundParts[backgroundParts.length - 1]?.trim() || '';
+        
+        // Parse mood description and emoji (e.g., "happy 😊" -> description: "happy", emoji: "😊")
+        const moodParts = moodWithEmoji.split(' ');
+        const moodDescription = moodParts.slice(0, -1).join(' ').trim() || '';
+        const moodEmoji = moodParts[moodParts.length - 1]?.trim() || '';
+        
+        // Store the complete mood string (description + emoji) in moodEmoji field
+        const completeMoodString = moodWithEmoji.trim();
+        
+        const correct = parseAnswerEmoji(correctAnswerWithEmoji);
+        const incorrect1 = parseAnswerEmoji(incorrectAnswer1WithEmoji);
+        const incorrect2 = parseAnswerEmoji(incorrectAnswer2WithEmoji);
+        const incorrect3 = parseAnswerEmoji(incorrectAnswer3WithEmoji);
+        
+        // Add question to array
+        questionsArray.push({
+          npcName: npcName,
+          npcSentence: npcSentence,
+          npcIcon: npcIcon,
+          correctAnswer: correct.answer,
+          correctEmoji: correct.emoji,
+          incorrectAnswer1: incorrect1.answer,
+          incorrectEmoji1: incorrect1.emoji,
+          incorrectAnswer2: incorrect2.answer,
+          incorrectEmoji2: incorrect2.emoji,
+          incorrectAnswer3: incorrect3.answer,
+          incorrectEmoji3: incorrect3.emoji,
+          backgroundInfo: backgroundText,
+          moodEmoji: completeMoodString, // Store complete mood string (description + emoji)
+        });
+        
+        addedCount++;
+      }
+      
+      // Create single document with all questions
+      if (questionsArray.length > 0) {
+        await addDoc(collection(db, 'emojiQuestions'), {
+          questions: questionsArray,
+          createdAt: new Date(),
+        });
+      }
+      
+      Alert.alert('Success', `Added ${addedCount} emoji questions in 1 document`);
+      setEmojiBulkText('');
+      setShowEmojiBulkModal(false);
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  const handleCleanupEmojiQuestions = async () => {
+    try {
+      // Delete all existing emoji questions
+      const querySnapshot = await getDocs(collection(db, 'emojiQuestions'));
+      const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+      
+      Alert.alert('Success', 'All existing emoji questions have been deleted. You can now add new ones with the correct format.');
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
   if (!isAdmin) {
     return (
       <View style={styles.centered}>
@@ -602,6 +775,81 @@ const AdminPanelScreen = () => {
       <View style={{ padding: 12, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#eee' }}>
         <Button title="Save Changes" onPress={handleSaveAll} color="#1976D2" />
       </View>
+      {/* Emoji Questions Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Emoji Questions</Text>
+        <Text style={styles.sectionSubtitle}>
+          Add mood-based questions in bulk format:
+        </Text>
+        <Text style={styles.formatText}>
+          Format: ---npc sentence---correct answer-emoji---incorrect1-emoji---incorrect2-emoji---incorrect3-emoji---mood-emoji
+        </Text>
+        <Text style={styles.exampleText}>
+          Example: ---What is your purpose of visit?---I have applied for a language course-🙂---I do not want to share it with you.-😡---Is there something wrong with my files?-😥---I knew there was something wrong.-😭---happy-🙂
+        </Text>
+        <Text style={styles.noteText}>
+          Note: Each answer should be in format "text-emoji" (text followed by dash and emoji). You can add multiple questions, one per line.
+        </Text>
+        
+        <TouchableOpacity
+          style={styles.bulkButton}
+          onPress={() => setShowEmojiBulkModal(true)}
+        >
+          <Text style={styles.bulkButtonText}>Add Emoji Questions in Bulk</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.bulkButton, { backgroundColor: '#f44336', marginTop: 12 }]}
+          onPress={handleCleanupEmojiQuestions}
+        >
+          <Text style={styles.bulkButtonText}>Clean Up Existing Questions</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Emoji Bulk Modal */}
+      <Modal
+        visible={showEmojiBulkModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEmojiBulkModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Emoji Questions in Bulk</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter questions in the format: ---npc sentence---correct answer-emoji---incorrect1-emoji---incorrect2-emoji---incorrect3-emoji---mood-emoji
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              Each answer should be "text-emoji" (text followed by dash and emoji)
+            </Text>
+            
+            <TextInput
+              style={styles.bulkTextInput}
+              multiline
+              numberOfLines={10}
+              placeholder="Paste your questions here..."
+              value={emojiBulkText}
+              onChangeText={setEmojiBulkText}
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowEmojiBulkModal(false)}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleBulkAddEmojiQuestions}
+              >
+                <Text style={styles.modalButtonText}>Add Questions</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -639,6 +887,107 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: '#f9f9f9',
     textAlignVertical: 'top',
+  },
+  section: {
+    marginTop: 24,
+    padding: 18,
+    backgroundColor: '#f0f4f8',
+    borderRadius: 14,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#1976D2',
+    letterSpacing: 0.5,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    marginBottom: 8,
+    color: '#555',
+  },
+  formatText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1976D2',
+    marginBottom: 8,
+  },
+  exampleText: {
+    fontSize: 14,
+    color: '#555',
+    marginTop: 8,
+  },
+  noteText: {
+    fontSize: 12,
+    color: '#1976D2',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  bulkButton: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bulkButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    padding: 24,
+    borderRadius: 16,
+    width: 340,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#1976D2',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+    color: '#555',
+    textAlign: 'center',
+  },
+  bulkTextInput: {
+    width: 300,
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 15,
+    marginBottom: 16,
+    backgroundColor: '#f9f9f9',
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  cancelButton: {
+    backgroundColor: '#b0bec5',
+  },
+  saveButton: {
+    backgroundColor: '#4CAF50',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

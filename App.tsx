@@ -5,65 +5,61 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from './firebase';
+import { FontSizeProvider, useFontSize } from './FontSizeContext';
 import AdminPanelScreen from './screens/AdminPanelScreen';
-import LessonScreen from './screens/LessonScreen';
-import MapScreen from './screens/MapScreen';
+import ChapterQuestionsScreen from './screens/ChapterQuestionsScreen';
+import DeleteAccountScreen from './screens/DeleteAccountScreen';
+import EmojiStoryScreen from './screens/EmojiStoryScreen';
+import LearnedWordsScreen from './screens/LearnedWordsScreen';
+import ProfileScreen from './screens/ProfileScreen';
+import SettingsScreen from './screens/SettingsScreen';
 import SignInScreen from './screens/SignInScreen';
 import SignUpScreen from './screens/SignUpScreen';
+import StoryDetailScreen from './screens/StoryDetailScreen';
 import VocabularyScreen from './screens/VocabularyScreen';
+import WebAdminPanel from './screens/WebAdminPanel';
 import { ThemeProvider, useTheme } from './ThemeContext';
 
-const Stack = createNativeStackNavigator<{
-  Map: undefined;
+type RootStackParamList = {
+  Words: undefined;
+  EmojiStory: undefined;
   AdminPanel: undefined;
+  WebAdminPanel: undefined;
+  LearnedWords: undefined;
+  StoryDetailScreen: { storyId: string };
+  ChapterQuestionsScreen: { 
+    storyId: string; 
+    chapterId: string; 
+    chapterTitle: string; 
+    questions: any[]; 
+    chapterIndex: number; 
+    storyData: any; 
+  };
   SignIn: undefined;
   SignUp: undefined;
   LessonScreen: { lessonId: string; dayIndex: number };
-}>();
+  Settings: undefined;
+  Profile: undefined;
+  DeleteAccount: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const Tab = createBottomTabNavigator();
 
-const MapStack = createNativeStackNavigator();
-function MapStackScreen({ setWordCount, setCurrentRoute }: { setWordCount: (n: number) => void; setCurrentRoute: (route: string) => void }) {
-  const [showProfile, setShowProfile] = useState(false);
-  const { theme } = useTheme();
 
-  return (
-    <MapStack.Navigator 
-      initialRouteName="MapScreen" 
-      screenOptions={{
-        headerShown: true,
-        headerTitle: "Storypick",
-        headerTitleStyle: { fontSize: 20, fontWeight: 'bold', color: theme.primaryText },
-        headerStyle: { backgroundColor: theme.backgroundColor },
-        headerTintColor: theme.primaryText,
-        headerRight: () => (
-          <TouchableOpacity 
-            style={{ marginRight: 16 }}
-            onPress={() => setShowProfile(true)}
-          >
-            <Ionicons name="person-circle" size={28} color={theme.primary} />
-          </TouchableOpacity>
-        ),
-      }}
-    >
-      <MapStack.Screen name="MapScreen">
-        {props => <MapScreen {...props} setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} showProfile={showProfile} setShowProfile={setShowProfile} />}
-      </MapStack.Screen>
-      <MapStack.Screen name="AdminPanel" component={AdminPanelScreen} />
-      <MapStack.Screen name="LessonScreen">
-        {props => <LessonScreen {...props} setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} />}
-      </MapStack.Screen>
-    </MapStack.Navigator>
-  );
-}
 
 const WordsStack = createNativeStackNavigator();
-function WordsStackScreen({ wordCount, setWordCount, setCurrentRoute }: { wordCount: number; setWordCount: (n: number) => void; setCurrentRoute: (route: string) => void }) {
-  const [showProfile, setShowProfile] = useState(false);
+const WordsStackScreen = ({ wordCount, setWordCount, setCurrentRoute, triggerWordsTabAnimation }: { wordCount: number; setWordCount: (n: number) => void; setCurrentRoute: (route: string) => void; triggerWordsTabAnimation: () => void }) => {
   const { theme } = useTheme();
+  const { getFontSizeMultiplier } = useFontSize();
+
+  const getScaledFontSize = (baseSize: number) => {
+    const multiplier = getFontSizeMultiplier();
+    return Math.round(baseSize * multiplier);
+  };
 
   return (
     <WordsStack.Navigator 
@@ -71,23 +67,76 @@ function WordsStackScreen({ wordCount, setWordCount, setCurrentRoute }: { wordCo
       screenOptions={{
         headerShown: true,
         headerTitle: "Storypick",
-        headerTitleStyle: { fontSize: 20, fontWeight: 'bold', color: theme.primaryText },
+        headerTitleStyle: { fontSize: getScaledFontSize(20), fontWeight: 'bold', color: theme.primaryText },
         headerStyle: { backgroundColor: theme.backgroundColor },
         headerTintColor: theme.primaryText,
-        headerRight: () => (
-          <TouchableOpacity 
-            style={{ marginRight: 16 }}
-            onPress={() => setShowProfile(true)}
-          >
-            <Ionicons name="person-circle" size={28} color={theme.primary} />
-          </TouchableOpacity>
-        ),
       }}
     >
       <WordsStack.Screen name="VocabularyScreen">
-        {props => <VocabularyScreen {...props} wordCount={wordCount} setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} showProfile={showProfile} setShowProfile={setShowProfile} />}
+        {props => <VocabularyScreen {...props} wordCount={wordCount} setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} triggerWordsTabAnimation={triggerWordsTabAnimation} />}
       </WordsStack.Screen>
+      <WordsStack.Screen name="LearnedWords" component={LearnedWordsScreen} />
     </WordsStack.Navigator>
+  );
+}
+
+const EmojiStoryStack = createNativeStackNavigator();
+const EmojiStoryStackScreen = ({ setCurrentRoute }: { setCurrentRoute: (route: string) => void }) => {
+  const { theme } = useTheme();
+  const { getFontSizeMultiplier } = useFontSize();
+
+  const getScaledFontSize = (baseSize: number) => {
+    const multiplier = getFontSizeMultiplier();
+    return Math.round(baseSize * multiplier);
+  };
+
+  return (
+    <EmojiStoryStack.Navigator 
+      initialRouteName="EmojiStoryScreen" 
+      screenOptions={{
+        headerShown: true,
+        headerTitle: "Storypick",
+        headerTitleStyle: { fontSize: getScaledFontSize(20), fontWeight: 'bold', color: theme.primaryText },
+        headerStyle: { backgroundColor: theme.backgroundColor },
+        headerTintColor: theme.primaryText,
+      }}
+    >
+      <EmojiStoryStack.Screen name="EmojiStoryScreen">
+        {props => <EmojiStoryScreen {...props} setCurrentRoute={setCurrentRoute} />}
+      </EmojiStoryStack.Screen>
+      <EmojiStoryStack.Screen name="StoryDetailScreen" component={StoryDetailScreen} />
+      <EmojiStoryStack.Screen name="ChapterQuestionsScreen" component={ChapterQuestionsScreen} />
+      <EmojiStoryStack.Screen name="AdminPanel" component={AdminPanelScreen} />
+      <EmojiStoryStack.Screen name="WebAdminPanel" component={WebAdminPanel} />
+    </EmojiStoryStack.Navigator>
+  );
+}
+
+const SettingsStack = createNativeStackNavigator();
+const SettingsStackScreen = () => {
+  const { theme } = useTheme();
+  const { getFontSizeMultiplier } = useFontSize();
+
+  const getScaledFontSize = (baseSize: number) => {
+    const multiplier = getFontSizeMultiplier();
+    return Math.round(baseSize * multiplier);
+  };
+
+  return (
+    <SettingsStack.Navigator 
+      initialRouteName="Settings" 
+      screenOptions={{
+        headerShown: true,
+        headerTitle: "Settings",
+        headerTitleStyle: { fontSize: getScaledFontSize(20), fontWeight: 'bold', color: theme.primaryText },
+        headerStyle: { backgroundColor: theme.backgroundColor },
+        headerTintColor: theme.primaryText,
+      }}
+    >
+      <SettingsStack.Screen name="Settings" component={SettingsScreen} />
+      <SettingsStack.Screen name="Profile" component={ProfileScreen} />
+      <SettingsStack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
+    </SettingsStack.Navigator>
   );
 }
 
@@ -95,83 +144,117 @@ function AppContent() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [wordCount, setWordCount] = useState(0);
-  const [currentRoute, setCurrentRoute] = useState('Map');
+  const [currentRoute, setCurrentRoute] = useState('Story');
+  const [wordsTabAnimating, setWordsTabAnimating] = useState(false);
   const { theme } = useTheme();
+  const { getFontSizeMultiplier } = useFontSize();
+
+  const getScaledFontSize = (baseSize: number) => {
+    const multiplier = getFontSizeMultiplier();
+    return Math.round(baseSize * multiplier);
+  };
+
+  // Function to trigger Words tab red flash animation
+  const triggerWordsTabAnimation = () => {
+    setWordsTabAnimating(true);
+    setTimeout(() => setWordsTabAnimating(false), 1000);
+  };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
       setLoading(false);
     });
+
     return unsubscribe;
   }, []);
 
-  // Fetch word count for badge
   useEffect(() => {
     const fetchCount = async () => {
-      if (!user) { setWordCount(0); return; }
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists() && Array.isArray(userSnap.data().myWords)) {
-        setWordCount(userSnap.data().myWords.length);
-      } else {
-        setWordCount(0);
+      if (!user) return;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          const words = data.myWords || [];
+          setWordCount(words.length);
+        }
+      } catch (error) {
+        console.error('Error fetching word count:', error);
       }
     };
+
     fetchCount();
   }, [user]);
 
   function CustomTabBar({ state, descriptors, navigation }: any) {
-    const iconMap = { Map: 'map', Words: 'book' } as const;
+    const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
+      Story: 'library',
+      Words: 'book',
+      Settings: 'settings',
+    };
     
-    // Hide tab bar if we're in a lesson or vocabulary practice
-    if (currentRoute === 'LessonScreen' || currentRoute === 'VocabularyPractice') {
+    // Hide tab bar if we're in vocabulary practice (but show during lesson completion)
+    const currentRouteName = state.routes[state.index].name;
+    if (currentRouteName === 'Words' && currentRoute === 'VocabularyScreen') {
       return null;
     }
-    
+
     return (
       <View style={{ 
         flexDirection: 'row', 
-        height: 60, 
+        backgroundColor: theme.backgroundColor, 
         borderTopWidth: 1, 
-        borderColor: theme.borderColor, 
-        backgroundColor: theme.tabBarBackground 
+        borderTopColor: theme.dividerColor,
+        paddingBottom: 8,
+        paddingTop: 4,
+        height: 60
       }}>
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
-          const label =
-            options.tabBarLabel !== undefined
-              ? options.tabBarLabel
-              : options.title !== undefined
-              ? options.title
-              : route.name;
+          const label = options.tabBarLabel !== undefined
+            ? options.tabBarLabel
+            : options.title !== undefined
+            ? options.title
+            : route.name;
           const isFocused = state.index === index;
+          const isWordsTab = route.name === 'Words';
+          
           return (
             <React.Fragment key={route.key}>
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                 <TouchableOpacity
-                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%' }}
+                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}
                   onPress={() => {
                     navigation.navigate(route.name);
                     setCurrentRoute(route.name);
                   }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons 
-                    name={iconMap[route.name as keyof typeof iconMap]} 
-                    size={22} 
-                    color={isFocused ? theme.tabBarActive : theme.tabBarInactive} 
-                    style={{ marginBottom: 2 }} 
-                  />
-                  <Text
-                    style={{ 
-                      color: isFocused ? theme.tabBarActive : theme.tabBarInactive, 
-                      fontWeight: isFocused ? 'bold' : 'normal', 
-                      fontSize: 16 
-                    }}
-                  >
-                    {label}
-                  </Text>
+                  <Animated.View style={{ 
+                    alignItems: 'center'
+                  }}>
+                    <Animated.View>
+                      <Ionicons 
+                        name={iconMap[route.name as keyof typeof iconMap]} 
+                        size={22} 
+                        color={isWordsTab ? 
+                          (wordsTabAnimating ? '#FF0000' : (isFocused ? theme.tabBarActive : theme.tabBarInactive)) : 
+                          (isFocused ? theme.tabBarActive : theme.tabBarInactive)
+                        }
+                        style={{ marginBottom: 2 }} 
+                      />
+                    </Animated.View>
+                    <Text
+                      style={{ 
+                        color: isFocused ? theme.tabBarActive : theme.tabBarInactive, 
+                        fontWeight: isFocused ? 'bold' : 'normal', 
+                        fontSize: getScaledFontSize(16)
+                      }}
+                    >
+                      {label}
+                    </Text>
+                  </Animated.View>
                 </TouchableOpacity>
               </View>
               {index === 0 && (
@@ -196,20 +279,23 @@ function AppContent() {
     <NavigationContainer>
         {user ? (
         <Tab.Navigator 
-          initialRouteName="Map" 
+          initialRouteName="Story" 
           screenOptions={{ headerShown: false }}
           tabBar={props => <CustomTabBar {...props} />}
           screenListeners={{
             focus: (e) => {
-              setCurrentRoute(e.target?.split('-')[0] || 'Map');
+              setCurrentRoute(e.target?.split('-')[0] || 'Story');
             },
           }}
         >
-          <Tab.Screen name="Map">
-            {() => <MapStackScreen setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} />}
+          <Tab.Screen name="Story">
+            {() => <EmojiStoryStackScreen setCurrentRoute={setCurrentRoute} />}
           </Tab.Screen>
           <Tab.Screen name="Words">
-            {() => <WordsStackScreen wordCount={wordCount} setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} />}
+            {() => <WordsStackScreen wordCount={wordCount} setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} triggerWordsTabAnimation={triggerWordsTabAnimation} />}
+          </Tab.Screen>
+          <Tab.Screen name="Settings">
+            {() => <SettingsStackScreen />}
           </Tab.Screen>
         </Tab.Navigator>
         ) : (
@@ -226,7 +312,9 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <FontSizeProvider>
+        <AppContent />
+      </FontSizeProvider>
     </ThemeProvider>
   );
 }
