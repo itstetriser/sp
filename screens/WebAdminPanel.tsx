@@ -1,6 +1,6 @@
 import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { db } from '../firebase';
 import { useFontSize } from '../FontSizeContext';
 import { useTheme } from '../ThemeContext';
@@ -72,6 +72,7 @@ const WebAdminPanel = () => {
   const [editStoryDescription, setEditStoryDescription] = useState('');
   const [editStoryLevel, setEditStoryLevel] = useState('');
   const [editStoryEmoji, setEditStoryEmoji] = useState('');
+  const [editStoryImageUrl, setEditStoryImageUrl] = useState('');
 
   // Chapter editing
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
@@ -464,6 +465,7 @@ const WebAdminPanel = () => {
     setEditStoryDescription(story.description);
     setEditStoryLevel(story.level);
     setEditStoryEmoji(story.emoji);
+    setEditStoryImageUrl(story.imageUrl || '');
   };
 
   const handleUpdateStory = async () => {
@@ -479,6 +481,7 @@ const WebAdminPanel = () => {
         description: editStoryDescription.trim(),
         level: editStoryLevel,
         emoji: editStoryEmoji,
+        imageUrl: editStoryImageUrl,
       });
 
       setEditingStory(null);
@@ -515,6 +518,7 @@ const WebAdminPanel = () => {
     setEditStoryDescription('');
     setEditStoryLevel('');
     setEditStoryEmoji('');
+    setEditStoryImageUrl('');
   };
 
   const handleEditChapter = (chapter: Chapter) => {
@@ -1010,6 +1014,24 @@ const WebAdminPanel = () => {
                     placeholderTextColor={theme.secondaryText}
                   />
                 </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, { color: theme.primaryText, fontSize: getScaledFontSize(16) }]}>
+                    Image URL:
+                  </Text>
+                  <TextInput
+                    style={[styles.input, { 
+                      backgroundColor: theme.surfaceColor, 
+                      color: theme.primaryText,
+                      borderColor: theme.borderColor,
+                      fontSize: getScaledFontSize(16)
+                    }]}
+                    value={editStoryImageUrl}
+                    onChangeText={setEditStoryImageUrl}
+                    placeholder="https://example.com/image.jpg"
+                    placeholderTextColor={theme.secondaryText}
+                  />
+                </View>
               </View>
 
               <View style={styles.buttonRow}>
@@ -1285,9 +1307,17 @@ const WebAdminPanel = () => {
                 onPress={() => setSelectedStory(story)}
               >
                 <View style={styles.storyHeader}>
-                  <Text style={[styles.storyEmoji, { fontSize: getScaledFontSize(24) }]}>
-                    {story.emoji}
-                  </Text>
+                  {(story.imageUrl || (story.emoji && story.emoji.startsWith('http'))) ? (
+                    <Image 
+                      source={{ uri: story.imageUrl || story.emoji }} 
+                      style={styles.storyImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <Text style={[styles.storyEmoji, { fontSize: getScaledFontSize(24) }]}>
+                      {story.emoji}
+                    </Text>
+                  )}
                   <View style={styles.storyInfo}>
                     <Text style={[styles.storyTitle, { 
                       color: selectedStory?.id === story.id ? '#fff' : theme.primaryText,
@@ -2014,6 +2044,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   storyEmoji: {
+    marginRight: 12,
+  },
+  storyImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
     marginRight: 12,
   },
   storyInfo: {

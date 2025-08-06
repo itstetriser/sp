@@ -234,17 +234,7 @@ const SettingsScreenComponent = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={[styles.backButtonText, { color: theme.primary, fontSize: getScaledFontSize(16) }]}>‹ Back</Text>
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.primaryText, fontSize: getScaledFontSize(20) }]}>Settings</Text>
-        <View style={{ width: 60 }} />
-      </View>
+
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Phase 1: Core Settings */}
@@ -610,27 +600,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 50,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    padding: 8,
-    minWidth: 60,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
+
   section: {
     marginTop: 24,
     paddingHorizontal: 16,

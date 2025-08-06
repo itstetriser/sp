@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebase';
 import { useFontSize } from '../FontSizeContext';
 import { useTheme } from '../ThemeContext';
@@ -13,6 +13,7 @@ interface Story {
   description: string;
   level: string;
   emoji: string;
+  imageUrl?: string;
   chapters: Chapter[];
   createdAt: Date;
   active?: boolean;
@@ -210,28 +211,27 @@ const StoryDetailScreen = ({ route, navigation }: any) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.primaryText} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.primaryText, fontSize: getScaledFontSize(20) }]}>
-          {story.title}
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Story Background */}
         <View style={[styles.storyBackground, { backgroundColor: theme.cardColor }]}>
-          <View style={styles.storyHeader}>
-            <Text style={[styles.storyEmoji, { fontSize: getScaledFontSize(48) }]}>
-              {story.emoji}
-            </Text>
-            <View style={styles.storyInfo}>
+          {/* Story Image - Full Width */}
+          {(story.imageUrl || (story.emoji && story.emoji.startsWith('http'))) ? (
+            <Image 
+              source={{ uri: story.imageUrl || story.emoji }} 
+              style={styles.storyImageLarge}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.storyEmojiContainer}>
+              <Text style={[styles.storyEmojiLarge, { fontSize: getScaledFontSize(80) }]}>
+                {story.emoji}
+              </Text>
+            </View>
+          )}
+          
+          {/* Story Info - Below Image */}
+          <View style={styles.storyInfoContainer}>
+            <View style={styles.storyTitleRow}>
               <Text style={[styles.storyTitle, { color: theme.primaryText, fontSize: getScaledFontSize(24) }]}>
                 {story.title}
               </Text>
@@ -241,16 +241,16 @@ const StoryDetailScreen = ({ route, navigation }: any) => {
                 </Text>
               </View>
             </View>
-          </View>
-          
-          <Text style={[styles.storyDescription, { color: theme.secondaryText, fontSize: getScaledFontSize(16) }]}>
-            {story.description}
-          </Text>
-          
-          <View style={styles.storyStats}>
-            <Text style={[styles.statsText, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>
-              {story.chapters.length} chapters • {story.chapters.reduce((total, chapter) => total + chapter.questions.length, 0)} questions
+            
+            <Text style={[styles.storyDescription, { color: theme.secondaryText, fontSize: getScaledFontSize(16) }]}>
+              {story.description}
             </Text>
+            
+            <View style={styles.storyStats}>
+              <Text style={[styles.statsText, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>
+                {story.chapters.length} chapters • {story.chapters.reduce((total, chapter) => total + chapter.questions.length, 0)} questions
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -314,14 +314,16 @@ const StoryDetailScreen = ({ route, navigation }: any) => {
               >
                 <View style={styles.chapterContent}>
                   <View style={styles.chapterHeader}>
-                    <View style={styles.chapterNumber}>
-                      <Text style={[styles.chapterNumberText, { 
-                        color: isLocked ? theme.secondaryText : theme.primaryText,
-                        fontSize: getScaledFontSize(18)
-                      }]}>
-                        {index + 1}
-                      </Text>
-                    </View>
+                                      <View style={[styles.chapterNumber, { 
+                    backgroundColor: isLocked ? theme.surfaceColor : theme.primary + '20'
+                  }]}>
+                    <Text style={[styles.chapterNumberText, { 
+                      color: isLocked ? theme.secondaryText : theme.primary,
+                      fontSize: getScaledFontSize(18)
+                    }]}>
+                      {index + 1}
+                    </Text>
+                  </View>
                     <View style={styles.chapterInfo}>
                       <Text style={[styles.chapterTitle, { 
                         color: isLocked ? theme.secondaryText : theme.primaryText,
@@ -363,25 +365,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  headerSpacer: {
-    width: 40,
-  },
   content: {
     flex: 1,
     padding: 20,
@@ -412,20 +395,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  storyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  storyImageLarge: {
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
     marginBottom: 16,
   },
-  storyEmoji: {
-    marginRight: 16,
+  storyEmojiContainer: {
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
+    marginBottom: 16,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  storyInfo: {
-    flex: 1,
+  storyEmojiLarge: {
+    // fontSize will be set inline
+  },
+  storyInfoContainer: {
+    // Container for story info below image
+  },
+  storyTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   storyTitle: {
     fontWeight: 'bold',
-    marginBottom: 8,
+    flex: 1,
+    marginRight: 12,
   },
   levelBadge: {
     alignSelf: 'flex-start',
@@ -474,7 +474,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
