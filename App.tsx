@@ -12,6 +12,11 @@ import AdminPanelScreen from './screens/AdminPanelScreen';
 import ChapterQuestionsScreen from './screens/ChapterQuestionsScreen';
 import DeleteAccountScreen from './screens/DeleteAccountScreen';
 import EmojiStoryScreen from './screens/EmojiStoryScreen';
+import FlowAdminPanel from './screens/FlowAdminPanel';
+import FlowChapterIntroScreen from './screens/FlowChapterIntroScreen';
+import FlowDetailScreen from './screens/FlowDetailScreen';
+import FlowQuestionsScreen from './screens/FlowQuestionsScreen';
+import FlowStoryScreen from './screens/FlowStoryScreen';
 import LearnedWordsScreen from './screens/LearnedWordsScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
@@ -140,6 +145,30 @@ const SettingsStackScreen = () => {
   );
 }
 
+const FlowStack = createNativeStackNavigator();
+const FlowStackScreen = () => {
+  const { theme } = useTheme();
+  const { getFontSizeMultiplier } = useFontSize();
+  const getScaledFontSize = (baseSize: number) => Math.round(baseSize * getFontSizeMultiplier());
+  return (
+    <FlowStack.Navigator
+      initialRouteName="FlowStoryScreen"
+      screenOptions={{
+        headerShown: true,
+        headerTitle: '', // remove static "Flow" header title
+        headerStyle: { backgroundColor: theme.backgroundColor },
+        headerTintColor: theme.primaryText,
+      }}
+    >
+      <FlowStack.Screen name="FlowStoryScreen" component={FlowStoryScreen} />
+      <FlowStack.Screen name="FlowDetailScreen" component={FlowDetailScreen} />
+      <FlowStack.Screen name="FlowChapterIntroScreen" component={FlowChapterIntroScreen} />
+      <FlowStack.Screen name="FlowQuestionsScreen" component={FlowQuestionsScreen} />
+      <FlowStack.Screen name="FlowAdminPanel" component={FlowAdminPanel} />
+    </FlowStack.Navigator>
+  );
+};
+
 function AppContent() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -194,11 +223,18 @@ function AppContent() {
       Settings: 'settings',
     };
     
-    // Hide tab bar if we're in vocabulary practice (but show during lesson completion)
+    // Hide tab bar in specific nested screens
     const currentRouteName = state.routes[state.index].name;
-    if (currentRouteName === 'Words' && currentRoute === 'VocabularyScreen') {
+    if ((currentRouteName === 'Words' && currentRoute === 'VocabularyScreen') ||
+        (currentRouteName === 'Story' && (currentRoute === 'FlowQuestionsScreen'))) {
       return null;
     }
+
+    const rootScreensByTab: Record<string, string> = {
+      Story: 'FlowStoryScreen',
+      Words: 'VocabularyScreen',
+      Settings: 'Settings',
+    };
 
     return (
       <View style={{ 
@@ -226,8 +262,13 @@ function AppContent() {
                 <TouchableOpacity
                   style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}
                   onPress={() => {
-                    navigation.navigate(route.name);
-                    setCurrentRoute(route.name);
+                    const rootScreen = rootScreensByTab[route.name];
+                    if (rootScreen) {
+                      navigation.navigate(route.name, { screen: rootScreen });
+                    } else {
+                      navigation.navigate(route.name);
+                    }
+                    setCurrentRoute(rootScreen || route.name);
                   }}
                   activeOpacity={0.7}
                 >
@@ -288,8 +329,9 @@ function AppContent() {
             },
           }}
         >
+          {/* Leftmost: Story = Flow stack */}
           <Tab.Screen name="Story">
-            {() => <EmojiStoryStackScreen setCurrentRoute={setCurrentRoute} />}
+            {() => <FlowStackScreen />}
           </Tab.Screen>
           <Tab.Screen name="Words">
             {() => <WordsStackScreen wordCount={wordCount} setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} triggerWordsTabAnimation={triggerWordsTabAnimation} />}
