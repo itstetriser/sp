@@ -264,6 +264,19 @@ const EmojiStoryScreen = ({ navigation, setCurrentRoute }: any) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const cleanImageUrl = (url: string) => {
+    if (!url) return url;
+    
+    // If it's an Unsplash URL, simplify it
+    if (url.includes('unsplash.com')) {
+      // Extract the base URL without query parameters
+      const baseUrl = url.split('?')[0];
+      return baseUrl + '?w=400&h=300&fit=crop';
+    }
+    
+    return url;
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
@@ -385,11 +398,17 @@ const EmojiStoryScreen = ({ navigation, setCurrentRoute }: any) => {
               >
                 {/* Story Image */}
                 <View style={[styles.storyImageContainer, { backgroundColor: theme.primary + '20' }]}>
-                  {story.imageUrl ? (
+                  {/* Check if emoji field contains an image URL or use imageUrl field */}
+                  {(story.imageUrl || (story.emoji && story.emoji.startsWith('http'))) ? (
                     <Image 
-                      source={{ uri: story.imageUrl }} 
+                      source={{ uri: cleanImageUrl(story.imageUrl || story.emoji) }} 
                       style={styles.storyImage}
                       resizeMode="cover"
+                      onError={(error) => {
+                        console.log('Image loading error:', error.nativeEvent);
+                        console.log('Failed URL:', story.imageUrl || story.emoji);
+                      }}
+                      onLoad={() => console.log('Image loaded successfully:', story.imageUrl || story.emoji)}
                     />
                   ) : (
                     <View style={[styles.storyImagePlaceholder, { backgroundColor: theme.primary + '40' }]}>

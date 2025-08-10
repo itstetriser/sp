@@ -149,20 +149,7 @@ const ProfileScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.goBack();
-            }}
-          >
-            <Text style={[styles.backButtonText, { color: theme.primary }]}>‹ Back</Text>
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.primaryText }]}>Profile</Text>
-          <View style={styles.backButton} />
-        </View>
+
 
         {/* Profile Section */}
         <View style={styles.section}>
@@ -342,27 +329,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    padding: 8,
-    minWidth: 60,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
+
   section: {
     marginTop: 24,
     paddingHorizontal: 16,

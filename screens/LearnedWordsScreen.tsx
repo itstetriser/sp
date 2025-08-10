@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
@@ -110,26 +109,7 @@ const LearnedWordsScreen = ({ navigation }: any) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={theme.primaryText} />
-        </TouchableOpacity>
-        
-        <Text style={[styles.headerTitle, { color: theme.primaryText, fontSize: getScaledFontSize(24) }]}>
-          Learned Words
-        </Text>
-        
-        <TouchableOpacity
-          style={styles.sortButton}
-          onPress={() => setShowSortDropdown(!showSortDropdown)}
-        >
-          <Ionicons name="funnel" size={20} color={theme.primaryText} />
-        </TouchableOpacity>
-      </View>
+
 
       {/* Sort Dropdown */}
       {showSortDropdown && (
@@ -260,24 +240,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 20,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontWeight: 'bold',
-    flex: 1,
-    textAlign: 'center',
-  },
-  sortButton: {
-    padding: 8,
-  },
+
   sortDropdown: {
     position: 'absolute',
     top: 80,
