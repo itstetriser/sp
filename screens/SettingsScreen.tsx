@@ -31,13 +31,11 @@ const SettingsScreenComponent = () => {
     reminderEnabled: false,
     notificationsEnabled: false,
   });
-  const [showGoalPicker, setShowGoalPicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showFontSizePicker, setShowFontSizePicker] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const dailyGoalOptions = [5, 10, 15, 20];
   const fontSizeOptions = ['small', 'medium', 'large'] as const;
 
   useEffect(() => {
@@ -99,10 +97,7 @@ const SettingsScreenComponent = () => {
     }
   };
 
-  const handleDailyGoalChange = (goal: number) => {
-    savePreferences({ dailyGoal: goal });
-    setShowGoalPicker(false);
-  };
+
 
   const handleReminderTimeChange = (time: string) => {
     savePreferences({ reminderTime: time });
@@ -288,16 +283,6 @@ const SettingsScreenComponent = () => {
           <Text style={[styles.sectionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>Learning Preferences</Text>
           
           <SettingItem
-            title="Daily Goal"
-            subtitle="Words or chapters to complete daily"
-            value={`${preferences.dailyGoal} items`}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setShowGoalPicker(true);
-            }}
-          />
-          
-          <SettingItem
             title="Study Reminder"
             subtitle="Get reminded to study daily"
             showSwitch={true}
@@ -362,33 +347,6 @@ const SettingsScreenComponent = () => {
               window.open ? window.open('mailto:support@storypick.com') : alert('Contact: support@storypick.com');
             }}
           />
-          <SettingItem
-            title="Rate App"
-            subtitle="Share your feedback"
-            value="Coming Soon"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Coming Soon', 'App rating will be available in a future update.');
-            }}
-          />
-          <SettingItem
-            title="Share App"
-            subtitle="Tell friends about Storypick"
-            value="Coming Soon"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Coming Soon', 'App sharing will be available in a future update.');
-            }}
-          />
-          <SettingItem
-            title="About"
-            subtitle="App version and information"
-            value="Coming Soon"
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Coming Soon', 'About information will be available in a future update.');
-            }}
-          />
         </View>
 
         {/* Logout Section */}
@@ -407,50 +365,7 @@ const SettingsScreenComponent = () => {
         </View>
       </ScrollView>
 
-      {/* Daily Goal Picker Modal */}
-      <Modal
-        visible={showGoalPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowGoalPicker(false)}
-      >
-        <View style={[styles.modalOverlay, { backgroundColor: theme.overlayColor }]}>
-          <View style={[styles.modalContent, { backgroundColor: theme.cardColor }]}>
-            <Text style={[styles.modalTitle, { color: theme.primaryText, fontSize: getScaledFontSize(20) }]}>Select Daily Goal</Text>
-            <Text style={[styles.modalSubtitle, { color: theme.secondaryText, fontSize: getScaledFontSize(16) }]}>
-              Choose how many words or chapters you want to complete daily
-            </Text>
-            
-            {dailyGoalOptions.map((goal) => (
-              <TouchableOpacity
-                key={goal}
-                style={[
-                  styles.goalOption,
-                  {
-                    backgroundColor: preferences.dailyGoal === goal ? theme.primary : theme.surfaceColor,
-                    borderColor: theme.borderColor
-                  }
-                ]}
-                onPress={() => handleDailyGoalChange(goal)}
-              >
-                <Text style={[
-                  styles.goalOptionText,
-                  { color: preferences.dailyGoal === goal ? '#fff' : theme.primaryText, fontSize: getScaledFontSize(16) }
-                ]}>
-                  {goal} items
-                </Text>
-              </TouchableOpacity>
-            ))}
-            
-            <TouchableOpacity
-              style={[styles.cancelButton, { backgroundColor: theme.surfaceColor }]}
-              onPress={() => setShowGoalPicker(false)}
-            >
-              <Text style={[styles.cancelButtonText, { color: theme.primaryText, fontSize: getScaledFontSize(16) }]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+
 
       {/* Reminder Time Picker Modal */}
       <Modal
@@ -666,17 +581,6 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     fontSize: 14,
     marginBottom: 20,
-    textAlign: 'center',
-  },
-  goalOption: {
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  goalOptionText: {
-    fontSize: 16,
-    fontWeight: '600',
     textAlign: 'center',
   },
   timeOptions: {

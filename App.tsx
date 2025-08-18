@@ -18,6 +18,7 @@ import FlowDetailScreen from './screens/FlowDetailScreen';
 import FlowQuestionsScreen from './screens/FlowQuestionsScreen';
 import FlowStoryScreen from './screens/FlowStoryScreen';
 import LearnedWordsScreen from './screens/LearnedWordsScreen';
+import PracticeScreen from './screens/PracticeScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import SignInScreen from './screens/SignInScreen';
@@ -71,16 +72,36 @@ const WordsStackScreen = ({ wordCount, setWordCount, setCurrentRoute, triggerWor
       initialRouteName="VocabularyScreen" 
       screenOptions={{
         headerShown: true,
-        headerTitle: "Storypick",
         headerTitleStyle: { fontSize: getScaledFontSize(20), fontWeight: 'bold', color: theme.primaryText },
         headerStyle: { backgroundColor: theme.backgroundColor },
         headerTintColor: theme.primaryText,
       }}
     >
-      <WordsStack.Screen name="VocabularyScreen">
+      <WordsStack.Screen 
+        name="VocabularyScreen"
+        options={{
+          headerTitle: "Words",
+          headerBackVisible: false,
+        }}
+      >
         {props => <VocabularyScreen {...props} wordCount={wordCount} setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} triggerWordsTabAnimation={triggerWordsTabAnimation} />}
       </WordsStack.Screen>
-      <WordsStack.Screen name="LearnedWords" component={LearnedWordsScreen} />
+      <WordsStack.Screen 
+        name="LearnedWords" 
+        component={LearnedWordsScreen}
+        options={{
+          headerTitle: "Learned Words",
+          headerBackTitle: "Words",
+        }}
+      />
+      <WordsStack.Screen
+        name="Practice"
+        component={PracticeScreen}
+        options={{
+          headerTitle: "Practice",
+          headerBackTitle: "Words",
+        }}
+      />
     </WordsStack.Navigator>
   );
 }
@@ -100,19 +121,52 @@ const EmojiStoryStackScreen = ({ setCurrentRoute }: { setCurrentRoute: (route: s
       initialRouteName="EmojiStoryScreen" 
       screenOptions={{
         headerShown: true,
-        headerTitle: "Storypick",
         headerTitleStyle: { fontSize: getScaledFontSize(20), fontWeight: 'bold', color: theme.primaryText },
         headerStyle: { backgroundColor: theme.backgroundColor },
         headerTintColor: theme.primaryText,
       }}
     >
-      <EmojiStoryStack.Screen name="EmojiStoryScreen">
+      <EmojiStoryStack.Screen 
+        name="EmojiStoryScreen"
+        options={{
+          headerTitle: "Emoji Story",
+          headerBackVisible: false,
+        }}
+      >
         {props => <EmojiStoryScreen {...props} setCurrentRoute={setCurrentRoute} />}
       </EmojiStoryStack.Screen>
-      <EmojiStoryStack.Screen name="StoryDetailScreen" component={StoryDetailScreen} />
-      <EmojiStoryStack.Screen name="ChapterQuestionsScreen" component={ChapterQuestionsScreen} />
-      <EmojiStoryStack.Screen name="AdminPanel" component={AdminPanelScreen} />
-      <EmojiStoryStack.Screen name="WebAdminPanel" component={WebAdminPanel} />
+      <EmojiStoryStack.Screen 
+        name="StoryDetailScreen" 
+        component={StoryDetailScreen}
+        options={{
+          headerTitle: "Story Details",
+          headerBackTitle: "Emoji Story",
+        }}
+      />
+      <EmojiStoryStack.Screen 
+        name="ChapterQuestionsScreen" 
+        component={ChapterQuestionsScreen}
+        options={{
+          headerTitle: "Chapter Questions",
+          headerBackTitle: "Story",
+        }}
+      />
+      <EmojiStoryStack.Screen 
+        name="AdminPanel" 
+        component={AdminPanelScreen}
+        options={{
+          headerTitle: "Admin Panel",
+          headerBackTitle: "Emoji Story",
+        }}
+      />
+      <EmojiStoryStack.Screen 
+        name="WebAdminPanel" 
+        component={WebAdminPanel}
+        options={{
+          headerTitle: "Web Admin",
+          headerBackTitle: "Admin Panel",
+        }}
+      />
     </EmojiStoryStack.Navigator>
   );
 }
@@ -132,15 +186,35 @@ const SettingsStackScreen = () => {
       initialRouteName="Settings" 
       screenOptions={{
         headerShown: true,
-        headerTitle: "Settings",
         headerTitleStyle: { fontSize: getScaledFontSize(20), fontWeight: 'bold', color: theme.primaryText },
         headerStyle: { backgroundColor: theme.backgroundColor },
         headerTintColor: theme.primaryText,
       }}
     >
-      <SettingsStack.Screen name="Settings" component={SettingsScreen} />
-      <SettingsStack.Screen name="Profile" component={ProfileScreen} />
-      <SettingsStack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
+      <SettingsStack.Screen 
+        name="Settings" 
+        component={SettingsScreen}
+        options={{
+          headerTitle: "Settings",
+          headerBackVisible: false,
+        }}
+      />
+      <SettingsStack.Screen 
+        name="Profile" 
+        component={ProfileScreen}
+        options={{
+          headerTitle: "Profile",
+          headerBackTitle: "Settings",
+        }}
+      />
+      <SettingsStack.Screen 
+        name="DeleteAccount" 
+        component={DeleteAccountScreen}
+        options={{
+          headerTitle: "Delete Account",
+          headerBackTitle: "Settings",
+        }}
+      />
     </SettingsStack.Navigator>
   );
 }
@@ -155,16 +229,51 @@ const FlowStackScreen = () => {
       initialRouteName="FlowStoryScreen"
       screenOptions={{
         headerShown: true,
-        headerTitle: '', // remove static "Flow" header title
+        headerTitleStyle: { fontSize: getScaledFontSize(20), fontWeight: 'bold', color: theme.primaryText },
         headerStyle: { backgroundColor: theme.backgroundColor },
         headerTintColor: theme.primaryText,
       }}
     >
-      <FlowStack.Screen name="FlowStoryScreen" component={FlowStoryScreen} />
-      <FlowStack.Screen name="FlowDetailScreen" component={FlowDetailScreen} />
-      <FlowStack.Screen name="FlowChapterIntroScreen" component={FlowChapterIntroScreen} />
-      <FlowStack.Screen name="FlowQuestionsScreen" component={FlowQuestionsScreen} />
-      <FlowStack.Screen name="FlowAdminPanel" component={FlowAdminPanel} />
+      <FlowStack.Screen 
+        name="FlowStoryScreen" 
+        component={FlowStoryScreen}
+        options={{
+          headerTitle: "Stories",
+          headerBackVisible: false,
+        }}
+      />
+      <FlowStack.Screen 
+        name="FlowDetailScreen" 
+        component={FlowDetailScreen}
+        options={{
+          headerTitle: "Story Details",
+          headerBackTitle: "Stories",
+        }}
+      />
+      <FlowStack.Screen 
+        name="FlowChapterIntroScreen" 
+        component={FlowChapterIntroScreen}
+        options={{
+          headerTitle: "Chapter Intro",
+          headerBackTitle: "Story",
+        }}
+      />
+      <FlowStack.Screen 
+        name="FlowQuestionsScreen" 
+        component={FlowQuestionsScreen}
+        options={{
+          headerTitle: "Questions",
+          headerBackTitle: "Chapter",
+        }}
+      />
+      <FlowStack.Screen 
+        name="FlowAdminPanel" 
+        component={FlowAdminPanel}
+        options={{
+          headerTitle: "Story Admin",
+          headerBackTitle: "Stories",
+        }}
+      />
     </FlowStack.Navigator>
   );
 };
@@ -266,7 +375,7 @@ function AppContent() {
                     if (rootScreen) {
                       navigation.navigate(route.name, { screen: rootScreen });
                     } else {
-                      navigation.navigate(route.name);
+                    navigation.navigate(route.name);
                     }
                     setCurrentRoute(rootScreen || route.name);
                   }}

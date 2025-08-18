@@ -1,6 +1,6 @@
-import { addDoc, collection, doc, getDocs, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { db } from '../firebase';
 import { useFontSize } from '../FontSizeContext';
 import { useTheme } from '../ThemeContext';
@@ -84,6 +84,21 @@ const FlowAdminPanel = () => {
 
   // Shuffled options by question ID
   const [shuffledById, setShuffledById] = useState<Record<string, Option[]>>({});
+
+  // Export dialogues modal state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportText, setExportText] = useState('');
+
+  // Vocabulary view toggle
+  const [showVocabulary, setShowVocabulary] = useState(false);
+  const [newVocabWord, setNewVocabWord] = useState('');
+  const [newVocabType, setNewVocabType] = useState('');
+  const [newVocabDefinition, setNewVocabDefinition] = useState('');
+  const [newVocabExample1, setNewVocabExample1] = useState('');
+  const [newVocabExample2, setNewVocabExample2] = useState('');
+  const [newVocabEquivalent, setNewVocabEquivalent] = useState('');
+  const [editingVocabIndex, setEditingVocabIndex] = useState<number | null>(null);
+  const [editingVocabFields, setEditingVocabFields] = useState({ word: '', type: '', definition: '', example1: '', example2: '', equivalent: '' });
 
   const getScaledFontSize = (baseSize: number) => Math.round(baseSize * getFontSizeMultiplier());
 
@@ -231,6 +246,17 @@ const FlowAdminPanel = () => {
     Alert.alert('Updated', `Story ${!story.active ? 'activated' : 'deactivated'}`);
   };
 
+  // Clear selection and show the Create Story form
+  const beginCreateNewStory = () => {
+    setSelectedStory(null);
+    setSelectedChapter(null);
+    setTitle('');
+    setDescription('');
+    setLevel('Easy');
+    setImageUrl('');
+    setEmoji('📘');
+  };
+
   const handleToggleChapterActive = async (chapter: FlowChapter) => {
     if (!selectedStory) return;
     const updatedChapters = selectedStory.chapters.map(ch => ch.id === chapter.id ? { ...ch, active: !ch.active } : ch);
@@ -239,6 +265,36 @@ const FlowAdminPanel = () => {
     const updatedChapter = updatedChapters.find(c => c.id === chapter.id) || null;
     setSelectedChapter(updatedChapter);
     await fetchStories();
+  };
+
+  // Reorder chapters by moving one up or down and reindexing order sequentially
+  const handleMoveChapter = async (chapterId: string, direction: 'up' | 'down') => {
+    if (!selectedStory) return;
+    try {
+      const chaptersSorted = [...(selectedStory.chapters || [])]
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const currentIndex = chaptersSorted.findIndex(c => c.id === chapterId);
+      if (currentIndex < 0) return;
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= chaptersSorted.length) return; // out of bounds
+
+      // Swap positions in the array
+      [chaptersSorted[currentIndex], chaptersSorted[targetIndex]] = [chaptersSorted[targetIndex], chaptersSorted[currentIndex]];
+
+      // Reindex orders sequentially starting from 1
+      const reindexed = chaptersSorted.map((c, i) => ({ ...c, order: i + 1 }));
+
+      await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: reindexed });
+
+      const updatedStory = { ...selectedStory, chapters: reindexed };
+      setSelectedStory(updatedStory);
+      if (selectedChapter) {
+        setSelectedChapter(updatedStory.chapters.find(c => c.id === selectedChapter.id) || null);
+      }
+    } catch (e) {
+      console.error('Reorder chapter failed', e);
+      Alert.alert('Error', 'Failed to reorder chapters');
+    }
   };
 
   const handleBulkUploadDialogues = async () => {
@@ -374,29 +430,89 @@ const FlowAdminPanel = () => {
   };
 
   const saveEditQuestion = async () => {
-    if (!selectedStory || !selectedChapter || !editingQuestion) return;
+    console.log('Save question button pressed');
+    if (!selectedStory || !selectedChapter || !editingQuestion) {
+      console.log('Missing required data for saving question');
+      return;
+    }
     
-    // Filter out empty incorrect answers
-    const updatedQuestion: FlowQuestion = { 
-      id: editingQuestion.id, 
-      npcName: editNpcName, 
-      npcSentence: editNpcSentence, 
-      npcIcon: editNpcIcon, 
-      correctAnswer: editCorrectAnswer, 
-      correctEmoji: '', // Keep empty since we're not using emojis
-      incorrectAnswer1: editIncorrectAnswer1.trim() || '', 
-      incorrectEmoji1: '', // Keep empty since we're not using emojis
-      incorrectAnswer2: editIncorrectAnswer2.trim() || '', 
-      incorrectEmoji2: '', // Keep empty since we're not using emojis
-      incorrectAnswer3: editIncorrectAnswer3.trim() || '', 
-      incorrectEmoji3: '' // Keep empty since we're not using emojis
-    };
-    
-    const updatedChapters = selectedStory.chapters.map(ch => ch.id === selectedChapter.id ? { ...ch, questions: ch.questions.map(q => q.id === editingQuestion.id ? updatedQuestion : q) } : ch);
-    await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
-    setEditingQuestion(null);
-    await fetchStories();
-    Alert.alert('Updated', 'Question updated');
+    try {
+      // Filter out empty incorrect answers
+      const updatedQuestion: FlowQuestion = { 
+        id: editingQuestion.id, 
+        npcName: editNpcName, 
+        npcSentence: editNpcSentence, 
+        npcIcon: editNpcIcon, 
+        correctAnswer: editCorrectAnswer, 
+        correctEmoji: '', // Keep empty since we're not using emojis
+        incorrectAnswer1: editIncorrectAnswer1.trim() || '', 
+        incorrectEmoji1: '', // Keep empty since we're not using emojis
+        incorrectAnswer2: editIncorrectAnswer2.trim() || '', 
+        incorrectEmoji2: '', // Keep empty since we're not using emojis
+        incorrectAnswer3: editIncorrectAnswer3.trim() || '', 
+        incorrectEmoji3: '' // Keep empty since we're not using emojis
+      };
+      
+      console.log('Updating question:', updatedQuestion);
+      
+      const updatedChapters = selectedStory.chapters.map(ch => {
+        if (ch.id !== selectedChapter.id) return ch;
+        const exists = (ch.questions || []).some(q => q.id === editingQuestion.id);
+        const newQuestions = exists 
+          ? ch.questions.map(q => (q.id === editingQuestion.id ? updatedQuestion : q))
+          : [...(ch.questions || []), updatedQuestion];
+        return { ...ch, questions: newQuestions };
+      });
+      
+      // Update Firestore
+      await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+      console.log('Question saved to Firestore');
+      
+      // Update local state
+      setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+      const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+      setSelectedChapter(updatedChapter || null);
+      // Invalidate cached shuffled options for this question so UI reflects latest answers
+      setShuffledById(prev => { const copy = { ...prev }; delete copy[updatedQuestion.id]; return copy; });
+      setEditingQuestion(null);
+      
+      Alert.alert('Success', 'Question updated successfully');
+    } catch (error) {
+      console.error('Error saving question:', error);
+      Alert.alert('Error', 'Failed to save question');
+    }
+  };
+
+  // Start creating a new question at the end of the list
+  const beginCreateQuestion = () => {
+    if (!selectedChapter) return;
+    const newId = `${Date.now()}_${Math.random()}`;
+    const draft: FlowQuestion = {
+      id: newId,
+      npcName: '',
+      npcSentence: '',
+      npcIcon: '',
+      correctAnswer: '',
+      correctEmoji: '',
+      incorrectAnswer1: '',
+      incorrectEmoji1: '',
+      incorrectAnswer2: '',
+      incorrectEmoji2: '',
+      incorrectAnswer3: '',
+      incorrectEmoji3: ''
+    } as FlowQuestion;
+    setEditingQuestion(draft);
+    setEditNpcName('');
+    setEditNpcSentence('');
+    setEditNpcIcon('');
+    setEditCorrectAnswer('');
+    setEditCorrectEmoji('');
+    setEditIncorrectAnswer1('');
+    setEditIncorrectEmoji1('');
+    setEditIncorrectAnswer2('');
+    setEditIncorrectEmoji2('');
+    setEditIncorrectAnswer3('');
+    setEditIncorrectEmoji3('');
   };
 
   const handleDeleteIncorrectOption = async (optionNumber: 1 | 2 | 3) => {
@@ -441,6 +557,8 @@ const FlowAdminPanel = () => {
       const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
       setSelectedChapter(updatedChapter || null);
       setEditingQuestion(updatedQuestion);
+      // Clear cached shuffled options for this question so changes show immediately
+      setShuffledById(prev => { const copy = { ...prev }; delete copy[updatedQuestion.id]; return copy; });
       
       Alert.alert('Deleted', `Incorrect option ${optionNumber} has been removed`);
     } catch (error) {
@@ -465,6 +583,198 @@ const FlowAdminPanel = () => {
     }
   };
 
+  // Move a question up or down within the current chapter
+  const handleMoveQuestion = async (questionId: string, direction: 'up' | 'down') => {
+    if (!selectedStory || !selectedChapter) return;
+    try {
+      const chaptersCopy = [...selectedStory.chapters];
+      const chapterIndex = chaptersCopy.findIndex(ch => ch.id === selectedChapter.id);
+      if (chapterIndex < 0) return;
+
+      const questions = [...(chaptersCopy[chapterIndex].questions || [])];
+      const currentIndex = questions.findIndex(q => q.id === questionId);
+      if (currentIndex < 0) return;
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= questions.length) return;
+
+      // Swap the two questions
+      [questions[currentIndex], questions[targetIndex]] = [questions[targetIndex], questions[currentIndex]];
+
+      const updatedChapter = { ...chaptersCopy[chapterIndex], questions };
+      const updatedChapters = chaptersCopy.map((ch, idx) => (idx === chapterIndex ? updatedChapter : ch));
+
+      await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+
+      const updatedStory = { ...selectedStory, chapters: updatedChapters };
+      setSelectedStory(updatedStory);
+      setSelectedChapter(updatedChapter);
+      if (editingQuestion) {
+        const eq = questions.find(q => q.id === editingQuestion.id) || null;
+        setEditingQuestion(eq);
+      }
+    } catch (e) {
+      console.error('Reorder question failed', e);
+      Alert.alert('Error', 'Failed to reorder question');
+    }
+  };
+
+  const handleDeleteStory = async (story: FlowStory) => {
+    console.log('Delete story button pressed for:', story.title);
+    if (!story) return;
+    
+    try {
+      console.log('Deleting story:', story.id);
+      await deleteDoc(doc(db, 'flowStories', story.id));
+      console.log('Story deleted from Firestore');
+      
+      // Update local state
+      setStories(prev => prev.filter(s => s.id !== story.id));
+      if (selectedStory?.id === story.id) {
+        setSelectedStory(null);
+        setSelectedChapter(null);
+      }
+      
+      Alert.alert('Success', 'Story deleted successfully');
+    } catch (error) {
+      console.error('Error deleting story:', error);
+      Alert.alert('Error', 'Failed to delete story');
+    }
+  };
+
+  const handleDeleteChapter = async () => {
+    console.log('Delete chapter button pressed');
+    if (!selectedStory || !selectedChapter) {
+      console.log('No selected story or chapter');
+      return;
+    }
+    
+    try {
+      console.log('Deleting chapter:', selectedChapter.id);
+      const updatedChapters = selectedStory.chapters.filter(ch => ch.id !== selectedChapter.id);
+      await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+      
+      // Update local state
+      setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+      setSelectedChapter(null);
+      
+      Alert.alert('Success', 'Chapter deleted successfully');
+    } catch (error) {
+      console.error('Error deleting chapter:', error);
+      Alert.alert('Error', 'Failed to delete chapter');
+    }
+  };
+
+  // Vocabulary management functions
+  const handleAddVocab = async () => {
+    if (!selectedStory || !selectedChapter || !newVocabWord.trim()) return;
+    
+    try {
+      const newVocabItem = {
+        word: newVocabWord.trim(),
+        type: newVocabType.trim(),
+        definition: newVocabDefinition.trim(),
+        example1: newVocabExample1.trim(),
+        example2: newVocabExample2.trim(),
+        equivalent: newVocabEquivalent.trim(),
+      };
+      
+      const updatedChapters = selectedStory.chapters.map(ch => 
+        ch.id === selectedChapter.id 
+          ? { ...ch, vocabulary: [...(ch.vocabulary || []), newVocabItem] }
+          : ch
+      );
+      
+      await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+      
+      // Update local state
+      setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+      const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+      setSelectedChapter(updatedChapter || null);
+      
+      // Clear form
+      setNewVocabWord('');
+      setNewVocabType('');
+      setNewVocabDefinition('');
+      setNewVocabExample1('');
+      setNewVocabExample2('');
+      setNewVocabEquivalent('');
+      
+      Alert.alert('Success', 'Vocabulary word added');
+    } catch (error) {
+      console.error('Error adding vocabulary:', error);
+      Alert.alert('Error', 'Failed to add vocabulary');
+    }
+  };
+
+  const handleDeleteVocab = async (index: number) => {
+    if (!selectedStory || !selectedChapter) return;
+    
+    try {
+      const updatedChapters = selectedStory.chapters.map(ch => 
+        ch.id === selectedChapter.id 
+          ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
+          : ch
+      );
+      
+      await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+      
+      // Update local state
+      setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+      const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+      setSelectedChapter(updatedChapter || null);
+      
+      Alert.alert('Success', 'Vocabulary word deleted');
+    } catch (error) {
+      console.error('Error deleting vocabulary:', error);
+      Alert.alert('Error', 'Failed to delete vocabulary');
+    }
+  };
+
+  const handleStartEditVocab = (index: number, vocabItem: any) => {
+    setEditingVocabIndex(index);
+    setEditingVocabFields({
+      word: vocabItem.word || '',
+      type: vocabItem.type || '',
+      definition: vocabItem.definition || '',
+      example1: vocabItem.example1 || '',
+      example2: vocabItem.example2 || '',
+      equivalent: vocabItem.equivalent || '',
+    });
+  };
+
+  const handleSaveEditVocab = async () => {
+    if (!selectedStory || !selectedChapter || editingVocabIndex === null) return;
+    
+    try {
+      const updatedChapters = selectedStory.chapters.map(ch => 
+        ch.id === selectedChapter.id 
+          ? { 
+              ...ch, 
+              vocabulary: (ch.vocabulary || []).map((v, i) => 
+                i === editingVocabIndex ? editingVocabFields : v
+              )
+            }
+          : ch
+      );
+      
+      await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+      
+      // Update local state
+      setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+      const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+      setSelectedChapter(updatedChapter || null);
+      
+      // Clear editing state
+      setEditingVocabIndex(null);
+      setEditingVocabFields({ word: '', type: '', definition: '', example1: '', example2: '', equivalent: '' });
+      
+      Alert.alert('Success', 'Vocabulary word updated');
+    } catch (error) {
+      console.error('Error updating vocabulary:', error);
+      Alert.alert('Error', 'Failed to update vocabulary');
+    }
+  };
+
   const buildOptions = (q: FlowQuestion): Option[] => [
     { text: q.correctAnswer, emoji: q.correctEmoji, correct: true },
     { text: q.incorrectAnswer1, emoji: q.incorrectEmoji1, correct: false },
@@ -482,6 +792,38 @@ const FlowAdminPanel = () => {
 
   const getScaled = getScaledFontSize;
 
+  // Build export text: all chapters with chapter-name separator and per-question options (✓ marks correct)
+  const buildExportText = (story: FlowStory) => {
+    const chapters = [...(story.chapters || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const lines: string[] = [];
+    chapters.forEach((ch) => {
+      lines.push(`=== ${ch.title} ===`);
+      (ch.questions || []).forEach((q, qi) => {
+        const opts: { label: string; text: string; correct: boolean }[] = [];
+        const pushIf = (label: string, text: string, correct: boolean) => {
+          const t = (text || '').trim();
+          if (t.length > 0) opts.push({ label, text: t, correct });
+        };
+        pushIf('A', q.correctAnswer, true);
+        pushIf('B', q.incorrectAnswer1, false);
+        pushIf('C', q.incorrectAnswer2, false);
+        pushIf('D', q.incorrectAnswer3, false);
+        lines.push(`${qi + 1}. ${q.npcSentence}`);
+        opts.forEach(o => lines.push(`   ${o.label}) ${o.text} ${o.correct ? '[✓]' : ''}`));
+        lines.push('');
+      });
+      lines.push('');
+    });
+    return lines.join('\n');
+  };
+
+  const handleExportDialogues = () => {
+    if (!selectedStory) { Alert.alert('Select a story first'); return; }
+    const text = buildExportText(selectedStory);
+    setExportText(text);
+    setShowExportModal(true);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <Text style={{ color: theme.primaryText, fontSize: getScaled(24), fontWeight: 'bold', textAlign: 'center', marginBottom: 12 }}>Flow Admin Panel</Text>
@@ -490,9 +832,17 @@ const FlowAdminPanel = () => {
         {/* Left Panel */}
         <ScrollView style={[styles.leftPanel, { backgroundColor: theme.cardColor }]}>
           {/* Utilities */}
+          <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={beginCreateNewStory}>
+            <Text style={styles.buttonText}>New Story</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={handleSeedDemoStories}>
             <Text style={styles.buttonText}>Seed 3 Demo Stories</Text>
           </TouchableOpacity>
+          {selectedStory && (
+            <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={handleExportDialogues}>
+              <Text style={styles.buttonText}>Export Dialogues (All Chapters)</Text>
+            </TouchableOpacity>
+          )}
           {/* Edit or Create Story */}
           {selectedStory ? (
             <>
@@ -582,20 +932,30 @@ const FlowAdminPanel = () => {
                 <View style={styles.storyHeader}>
                   {(s.imageUrl || (s.emoji && s.emoji.startsWith('http'))) ? (
                     <Image source={{ uri: s.imageUrl || s.emoji }} style={styles.storyImage} />
-                  ) : (
-                    <Text style={[styles.storyEmoji]}>{s.emoji}</Text>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.storyTitle, { color: selectedStory?.id === s.id ? '#fff' : theme.primaryText }]}>{s.title}</Text>
-                    <Text style={[styles.storyLevel, { color: selectedStory?.id === s.id ? '#fff' : theme.secondaryText }]}>{s.level}</Text>
+                                      ) : (
+                      <Text style={[styles.storyEmoji]}>{s.emoji}</Text>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.storyTitle, { color: selectedStory?.id === s.id ? '#fff' : theme.primaryText }]}>{s.title}</Text>
+                      <Text style={[styles.storyLevel, { color: selectedStory?.id === s.id ? '#fff' : theme.secondaryText }]}>{s.level}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.primary }]} onPress={(e) => { e.stopPropagation(); setSelectedStory(s); }}><Text style={styles.smallBtnText}>Edit</Text></TouchableOpacity>
+                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: s.active ? theme.success : theme.warning }]} onPress={(e) => { e.stopPropagation(); handleToggleStoryActive(s); }}>
+                        <Text style={styles.smallBtnText}>{s.active ? 'Active' : 'Inactive'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.smallBtn, { backgroundColor: theme.error, minWidth: 60 }]} 
+                        onPress={(e) => { 
+                          e.stopPropagation(); 
+                          console.log('Delete story button clicked for:', s.title);
+                          handleDeleteStory(s); 
+                        }}
+                      >
+                        <Text style={styles.smallBtnText}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.primary }]} onPress={() => setSelectedStory(s)}><Text style={styles.smallBtnText}>Edit</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: s.active ? theme.success : theme.warning }]} onPress={() => handleToggleStoryActive(s)}>
-                      <Text style={styles.smallBtnText}>{s.active ? 'Active' : 'Inactive'}</Text>
-                    </TouchableOpacity>
-                  </View>
-        </View>
                 </TouchableOpacity>
             ))}
           </View>
@@ -606,21 +966,66 @@ const FlowAdminPanel = () => {
               <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>{selectedStory.title} Details</Text>
               <Text style={{ color: theme.secondaryText, marginBottom: 8 }}>Chapters: {selectedStory.chapters.length}</Text>
 
+              {/* View Toggle - Between chapters and content */}
+              {selectedChapter && (
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity 
+                    style={[styles.button, { backgroundColor: !showVocabulary ? theme.primary : theme.secondaryText, flex: 1 }]} 
+                    onPress={() => setShowVocabulary(false)}
+                  >
+                    <Text style={styles.buttonText}>Questions</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.button, { backgroundColor: showVocabulary ? theme.primary : theme.secondaryText, flex: 1 }]} 
+                    onPress={() => setShowVocabulary(true)}
+                  >
+                    <Text style={styles.buttonText}>Vocabulary</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* Chapters List */}
               <View>
-                {selectedStory.chapters.map((ch) => (
+                {[...selectedStory.chapters].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((ch, index, arr) => (
                   <TouchableOpacity key={ch.id} style={[styles.chapterItem, { borderColor: theme.borderColor, backgroundColor: selectedChapter?.id === ch.id ? theme.primary : theme.surfaceColor }]} onPress={() => setSelectedChapter(ch)}>
                     <View style={styles.chapterHeader}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.chapterTitle, { color: selectedChapter?.id === ch.id ? '#fff' : theme.primaryText }]}>{ch.title}</Text>
+                        <Text style={[styles.chapterTitle, { color: selectedChapter?.id === ch.id ? '#fff' : theme.primaryText }]}>
+                          {`${ch.order ?? (index + 1)}. ${ch.title}`}
+                        </Text>
                         <Text style={{ color: selectedChapter?.id === ch.id ? '#fff' : theme.secondaryText }}>{(ch.questions || []).length} questions</Text>
                       </View>
                       <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <TouchableOpacity style={[styles.smallBtn, { backgroundColor: ch.active ? theme.success : theme.warning }]} onPress={() => handleToggleChapterActive(ch)}>
+                        {/* Reorder controls */}
+                        <TouchableOpacity
+                          style={[styles.smallBtn, { backgroundColor: theme.primary, opacity: index === 0 ? 0.5 : 1 }]}
+                          disabled={index === 0}
+                          onPress={() => handleMoveChapter(ch.id, 'up')}
+                        >
+                          <Text style={styles.smallBtnText}>↑</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.smallBtn, { backgroundColor: theme.primary, opacity: index === arr.length - 1 ? 0.5 : 1 }]}
+                          disabled={index === arr.length - 1}
+                          onPress={() => handleMoveChapter(ch.id, 'down')}
+                        >
+                          <Text style={styles.smallBtnText}>↓</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.smallBtn, { backgroundColor: ch.active ? theme.success : theme.warning }]} onPress={(e) => { e.stopPropagation(); handleToggleChapterActive(ch); }}>
                           <Text style={styles.smallBtnText}>{ch.active ? 'Active' : 'Inactive'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={[styles.smallBtn, { backgroundColor: theme.error, minWidth: 60 }]} 
+                          onPress={(e) => { 
+                            e.stopPropagation(); 
+                            console.log('Delete chapter button clicked for:', ch.title);
+                            handleDeleteChapter(); 
+                          }}
+                        >
+                          <Text style={styles.smallBtnText}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -642,7 +1047,245 @@ const FlowAdminPanel = () => {
 
                   <View style={styles.divider} />
 
-                  <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Questions in {selectedChapter.title}</Text>
+                  <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>
+                    {showVocabulary ? 'Vocabulary' : 'Questions'} in {selectedChapter.title}
+                  </Text>
+                  
+                  {showVocabulary ? (
+                    // Vocabulary Section
+                    <View>
+                      <Text style={[styles.sectionTitle, { color: theme.primaryText, marginTop: 16 }]}>Vocabulary for {selectedChapter.title}</Text>
+                      
+                      {/* Add New Vocabulary Form */}
+                      <View style={[styles.questionCard, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}>
+                        <Text style={[styles.label, { color: theme.primaryText }]}>Add New Vocabulary</Text>
+                        <TextInput 
+                          style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                          value={newVocabWord} 
+                          onChangeText={setNewVocabWord} 
+                          placeholder="Word" 
+                          placeholderTextColor={theme.secondaryText} 
+                        />
+                        <TextInput 
+                          style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                          value={newVocabType} 
+                          onChangeText={setNewVocabType} 
+                          placeholder="Type (noun, verb, etc.)" 
+                          placeholderTextColor={theme.secondaryText} 
+                        />
+                        <TextInput 
+                          style={[styles.textArea, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                          value={newVocabDefinition} 
+                          onChangeText={setNewVocabDefinition} 
+                          placeholder="Definition" 
+                          placeholderTextColor={theme.secondaryText} 
+                          multiline 
+                          numberOfLines={2} 
+                        />
+                        <TextInput 
+                          style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                          value={newVocabExample1} 
+                          onChangeText={setNewVocabExample1} 
+                          placeholder="Example 1" 
+                          placeholderTextColor={theme.secondaryText} 
+                        />
+                        <TextInput 
+                          style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                          value={newVocabExample2} 
+                          onChangeText={setNewVocabExample2} 
+                          placeholder="Example 2" 
+                          placeholderTextColor={theme.secondaryText} 
+                        />
+                        <TextInput 
+                          style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                          value={newVocabEquivalent} 
+                          onChangeText={setNewVocabEquivalent} 
+                          placeholder="Equivalent in your language" 
+                          placeholderTextColor={theme.secondaryText} 
+                        />
+                        <TouchableOpacity 
+                          style={[styles.button, { backgroundColor: theme.success, marginTop: 12 }]} 
+                          onPress={handleAddVocab}
+                        >
+                          <Text style={styles.buttonText}>Add Vocabulary</Text>
+                        </TouchableOpacity>
+                      </View>
+                      
+                      {/* Vocabulary List */}
+                      {(selectedChapter.vocabulary || []).map((vocabItem, idx) => (
+                        <View key={idx} style={[styles.questionCard, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}>
+                          {editingVocabIndex === idx ? (
+                            <View>
+                              <Text style={[styles.label, { color: theme.primaryText }]}>Edit Vocabulary</Text>
+                              <TextInput 
+                                style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                                value={editingVocabFields.word} 
+                                onChangeText={(text) => setEditingVocabFields(prev => ({ ...prev, word: text }))} 
+                                placeholder="Word" 
+                                placeholderTextColor={theme.secondaryText} 
+                              />
+                              <TextInput 
+                                style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                                value={editingVocabFields.type} 
+                                onChangeText={(text) => setEditingVocabFields(prev => ({ ...prev, type: text }))} 
+                                placeholder="Type" 
+                                placeholderTextColor={theme.secondaryText} 
+                              />
+                              <TextInput 
+                                style={[styles.textArea, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                                value={editingVocabFields.definition} 
+                                onChangeText={(text) => setEditingVocabFields(prev => ({ ...prev, definition: text }))} 
+                                placeholder="Definition" 
+                                placeholderTextColor={theme.secondaryText} 
+                                multiline 
+                                numberOfLines={2} 
+                              />
+                              <TextInput 
+                                style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                                value={editingVocabFields.example1} 
+                                onChangeText={(text) => setEditingVocabFields(prev => ({ ...prev, example1: text }))} 
+                                placeholder="Example 1" 
+                                placeholderTextColor={theme.secondaryText} 
+                              />
+                              <TextInput 
+                                style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                                value={editingVocabFields.example2} 
+                                onChangeText={(text) => setEditingVocabFields(prev => ({ ...prev, example2: text }))} 
+                                placeholder="Example 2" 
+                                placeholderTextColor={theme.secondaryText} 
+                              />
+                              <TextInput 
+                                style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} 
+                                value={editingVocabFields.equivalent} 
+                                onChangeText={(text) => setEditingVocabFields(prev => ({ ...prev, equivalent: text }))} 
+                                placeholder="Equivalent" 
+                                placeholderTextColor={theme.secondaryText} 
+                              />
+                              <View style={styles.buttonRow}>
+                                <TouchableOpacity 
+                                  style={[styles.button, { backgroundColor: theme.success }]} 
+                                  onPress={handleSaveEditVocab}
+                                >
+                                  <Text style={styles.buttonText}>Save</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                  style={[styles.button, { backgroundColor: theme.error }]} 
+                                  onPress={() => setEditingVocabIndex(null)}
+                                >
+                                  <Text style={styles.buttonText}>Cancel</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ) : (
+                            <View>
+                              <View style={styles.questionHeader}>
+                                <Text style={{ color: theme.primaryText, fontWeight: '600' }}>V{idx + 1}: {vocabItem.word}</Text>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                  <TouchableOpacity 
+                                    style={[styles.smallBtn, { backgroundColor: theme.primary }]} 
+                                    onPress={() => handleStartEditVocab(idx, vocabItem)}
+                                  >
+                                    <Text style={styles.smallBtnText}>Edit</Text>
+                                  </TouchableOpacity>
+                                  <TouchableOpacity 
+                                    style={[styles.smallBtn, { backgroundColor: theme.error }]} 
+                                    onPress={() => handleDeleteVocab(idx)}
+                                  >
+                                    <Text style={styles.smallBtnText}>Delete</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                              <View>
+                                <Text style={{ color: theme.secondaryText, marginBottom: 4 }}>Type: {vocabItem.type}</Text>
+                                <Text style={{ color: theme.secondaryText, marginBottom: 4 }}>Definition: {vocabItem.definition}</Text>
+                                <Text style={{ color: theme.secondaryText, marginBottom: 4 }}>Example 1: {vocabItem.example1}</Text>
+                                <Text style={{ color: theme.secondaryText, marginBottom: 4 }}>Example 2: {vocabItem.example2}</Text>
+                                <Text style={{ color: theme.secondaryText, marginBottom: 4 }}>Equivalent: {vocabItem.equivalent}</Text>
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    // Questions Section (existing code)
+                    <View>
+                  {((selectedChapter.questions || []).length === 0) && (
+                    <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary, marginBottom: 8 }]} onPress={beginCreateQuestion}>
+                      <Text style={styles.buttonText}>Add Question</Text>
+                    </TouchableOpacity>
+                  )}
+                  {/* Show draft editor when creating a new question and it is not yet in the list */}
+                  {((selectedChapter.questions || []).length === 0) && editingQuestion && !(selectedChapter.questions || []).some(q => q.id === editingQuestion.id) && (
+                    <View style={[styles.questionCard, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}> 
+                      <Text style={[styles.label, { color: theme.primaryText }]}>NPC Sentence</Text>
+                      <TextInput style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={editNpcSentence} onChangeText={setEditNpcSentence} placeholder="NPC sentence" placeholderTextColor={theme.secondaryText} />
+
+                      <Text style={[styles.label, { color: theme.primaryText, marginTop: 8 }]}>Correct Answer</Text>
+                      <TextInput style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={editCorrectAnswer} onChangeText={setEditCorrectAnswer} placeholder="Correct answer" placeholderTextColor={theme.secondaryText} />
+
+                      {editIncorrectAnswer1.trim() && (
+                        <>
+                          <Text style={[styles.label, { color: theme.primaryText, marginTop: 8 }]}>Incorrect 1</Text>
+                          <View style={styles.row}>
+                            <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor, marginRight: 8 }]} value={editIncorrectAnswer1} onChangeText={setEditIncorrectAnswer1} placeholder="Incorrect 1" placeholderTextColor={theme.secondaryText} />
+                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.error }]} onPress={() => handleDeleteIncorrectOption(1)}>
+                              <Text style={styles.smallBtnText}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+
+                      {editIncorrectAnswer2.trim() && (
+                        <>
+                          <Text style={[styles.label, { color: theme.primaryText, marginTop: 8 }]}>Incorrect 2</Text>
+                          <View style={styles.row}>
+                            <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor, marginRight: 8 }]} value={editIncorrectAnswer2} onChangeText={setEditIncorrectAnswer2} placeholder="Incorrect 2" placeholderTextColor={theme.secondaryText} />
+                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.error }]} onPress={() => handleDeleteIncorrectOption(2)}>
+                              <Text style={styles.smallBtnText}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+
+                      {editIncorrectAnswer3.trim() && (
+                        <>
+                          <Text style={[styles.label, { color: theme.primaryText, marginTop: 8 }]}>Incorrect 3</Text>
+                          <View style={styles.row}>
+                            <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor, marginRight: 8 }]} value={editIncorrectAnswer3} onChangeText={setEditIncorrectAnswer3} placeholder="Incorrect 3" placeholderTextColor={theme.secondaryText} />
+                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.error }]} onPress={() => handleDeleteIncorrectOption(3)}>
+                              <Text style={styles.smallBtnText}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+
+                      <TouchableOpacity 
+                        style={[styles.button, { backgroundColor: theme.primary, marginTop: 12 }]} 
+                        onPress={() => {
+                          if (!editIncorrectAnswer1.trim()) {
+                            setEditIncorrectAnswer1('New option');
+                          } else if (!editIncorrectAnswer2.trim()) {
+                            setEditIncorrectAnswer2('New option');
+                          } else if (!editIncorrectAnswer3.trim()) {
+                            setEditIncorrectAnswer3('New option');
+                          }
+                        }}
+                      >
+                        <Text style={styles.buttonText}>Add Incorrect Option</Text>
+                      </TouchableOpacity>
+
+                      <View style={styles.buttonRow}>
+                        <TouchableOpacity 
+                          style={[styles.button, { backgroundColor: theme.success }]} 
+                          onPress={saveEditQuestion}
+                        >
+                          <Text style={styles.buttonText}>Save Question</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.button, { backgroundColor: theme.error }]} onPress={() => setEditingQuestion(null)}><Text style={styles.buttonText}>Cancel</Text></TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
                   {(selectedChapter.questions || []).map((q, idx) => {
                     const optionsList = getOptionsForQuestion(q);
                     return (
@@ -692,24 +1335,16 @@ const FlowAdminPanel = () => {
                               </>
                             )}
 
-                            {/* Add new incorrect option button */}
-                            <TouchableOpacity 
-                              style={[styles.button, { backgroundColor: theme.primary, marginTop: 12 }]} 
-                              onPress={() => {
-                                if (!editIncorrectAnswer1.trim()) {
-                                  setEditIncorrectAnswer1('New option');
-                                } else if (!editIncorrectAnswer2.trim()) {
-                                  setEditIncorrectAnswer2('New option');
-                                } else if (!editIncorrectAnswer3.trim()) {
-                                  setEditIncorrectAnswer3('New option');
-                                }
-                              }}
-                            >
-                              <Text style={styles.buttonText}>Add Incorrect Option</Text>
-                            </TouchableOpacity>
-
                             <View style={styles.buttonRow}>
-                              <TouchableOpacity style={[styles.button, { backgroundColor: theme.success }]} onPress={saveEditQuestion}><Text style={styles.buttonText}>Save Question</Text></TouchableOpacity>
+                              <TouchableOpacity 
+                                style={[styles.button, { backgroundColor: theme.success }]} 
+                                onPress={() => {
+                                  console.log('Save Question button clicked');
+                                  saveEditQuestion();
+                                }}
+                              >
+                                <Text style={styles.buttonText}>Save Question</Text>
+                              </TouchableOpacity>
                               <TouchableOpacity style={[styles.button, { backgroundColor: theme.error }]} onPress={() => setEditingQuestion(null)}><Text style={styles.buttonText}>Cancel</Text></TouchableOpacity>
                             </View>
                           </View>
@@ -718,6 +1353,13 @@ const FlowAdminPanel = () => {
                             <View style={styles.questionHeader}> 
                               <Text style={{ color: theme.primaryText, fontWeight: '600' }}>Q{idx + 1}: {q.npcSentence}</Text>
                               <View style={{ flexDirection: 'row', gap: 8 }}>
+                                {/* Reorder question controls */}
+                                <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.primary, opacity: idx === 0 ? 0.5 : 1 }]} disabled={idx === 0} onPress={() => handleMoveQuestion(q.id, 'up')}>
+                                  <Text style={styles.smallBtnText}>↑</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.primary, opacity: idx === (selectedChapter.questions?.length || 1) - 1 ? 0.5 : 1 }]} disabled={idx === (selectedChapter.questions?.length || 1) - 1} onPress={() => handleMoveQuestion(q.id, 'down')}>
+                                  <Text style={styles.smallBtnText}>↓</Text>
+                                </TouchableOpacity>
                                 <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.primary }]} onPress={() => beginEditQuestion(q)}><Text style={styles.smallBtnText}>Edit</Text></TouchableOpacity>
                                 <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.error }]} onPress={() => handleDeleteQuestion(q.id)}><Text style={styles.smallBtnText}>Delete</Text></TouchableOpacity>
                               </View>
@@ -735,12 +1377,109 @@ const FlowAdminPanel = () => {
                       </View>
                     );
                   })}
+                  {/* If there are questions, show draft editor at the bottom when creating a new one */}
+                  {((selectedChapter.questions || []).length > 0) && editingQuestion && !(selectedChapter.questions || []).some(q => q.id === editingQuestion.id) && (
+                    <View style={[styles.questionCard, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}> 
+                      <Text style={[styles.label, { color: theme.primaryText }]}>NPC Sentence</Text>
+                      <TextInput style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={editNpcSentence} onChangeText={setEditNpcSentence} placeholder="NPC sentence" placeholderTextColor={theme.secondaryText} />
+
+                      <Text style={[styles.label, { color: theme.primaryText, marginTop: 8 }]}>Correct Answer</Text>
+                      <TextInput style={[styles.input, { backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={editCorrectAnswer} onChangeText={setEditCorrectAnswer} placeholder="Correct answer" placeholderTextColor={theme.secondaryText} />
+
+                      {editIncorrectAnswer1.trim() && (
+                        <>
+                          <Text style={[styles.label, { color: theme.primaryText, marginTop: 8 }]}>Incorrect 1</Text>
+                          <View style={styles.row}>
+                            <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor, marginRight: 8 }]} value={editIncorrectAnswer1} onChangeText={setEditIncorrectAnswer1} placeholder="Incorrect 1" placeholderTextColor={theme.secondaryText} />
+                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.error }]} onPress={() => handleDeleteIncorrectOption(1)}>
+                              <Text style={styles.smallBtnText}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+
+                      {editIncorrectAnswer2.trim() && (
+                        <>
+                          <Text style={[styles.label, { color: theme.primaryText, marginTop: 8 }]}>Incorrect 2</Text>
+                          <View style={styles.row}>
+                            <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor, marginRight: 8 }]} value={editIncorrectAnswer2} onChangeText={setEditIncorrectAnswer2} placeholder="Incorrect 2" placeholderTextColor={theme.secondaryText} />
+                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.error }]} onPress={() => handleDeleteIncorrectOption(2)}>
+                              <Text style={styles.smallBtnText}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+
+                      {editIncorrectAnswer3.trim() && (
+                        <>
+                          <Text style={[styles.label, { color: theme.primaryText, marginTop: 8 }]}>Incorrect 3</Text>
+                          <View style={styles.row}>
+                            <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.backgroundColor, color: theme.primaryText, borderColor: theme.borderColor, marginRight: 8 }]} value={editIncorrectAnswer3} onChangeText={setEditIncorrectAnswer3} placeholder="Incorrect 3" placeholderTextColor={theme.secondaryText} />
+                            <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.error }]} onPress={() => handleDeleteIncorrectOption(3)}>
+                              <Text style={styles.smallBtnText}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+
+                      <TouchableOpacity 
+                        style={[styles.button, { backgroundColor: theme.primary, marginTop: 12 }]} 
+                        onPress={() => {
+                          if (!editIncorrectAnswer1.trim()) {
+                            setEditIncorrectAnswer1('New option');
+                          } else if (!editIncorrectAnswer2.trim()) {
+                            setEditIncorrectAnswer2('New option');
+                          } else if (!editIncorrectAnswer3.trim()) {
+                            setEditIncorrectAnswer3('New option');
+                          }
+                        }}
+                      >
+                        <Text style={styles.buttonText}>Add Incorrect Option</Text>
+                      </TouchableOpacity>
+
+                      <View style={styles.buttonRow}>
+                        <TouchableOpacity 
+                          style={[styles.button, { backgroundColor: theme.success }]} 
+                          onPress={saveEditQuestion}
+                        >
+                          <Text style={styles.buttonText}>Save Question</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.button, { backgroundColor: theme.error }]} onPress={() => setEditingQuestion(null)}><Text style={styles.buttonText}>Cancel</Text></TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                  {((selectedChapter.questions || []).length > 0) && (
+                    <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={beginCreateQuestion}>
+                      <Text style={styles.buttonText}>Add Question</Text>
+                    </TouchableOpacity>
+                  )}
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
           )}
-        </View>
-      )}
-    </ScrollView>
+        </ScrollView>
       </View>
+      
+      {showExportModal && (
+        <Modal visible={showExportModal} transparent animationType="slide" onRequestClose={() => setShowExportModal(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+            <View style={{ backgroundColor: theme.cardColor, padding: 16, borderRadius: 12, width: '100%', maxWidth: 680, maxHeight: '85%' }}>
+              <Text style={{ color: theme.primaryText, fontWeight: 'bold', fontSize: getScaled(18), marginBottom: 8 }}>Export Dialogues</Text>
+              <Text style={{ color: theme.secondaryText, marginBottom: 8 }}>Chapter headers are included. Correct options are marked with [✓]. Long‑press to copy.</Text>
+              <ScrollView style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 8, padding: 10, backgroundColor: theme.surfaceColor, maxHeight: 500 }}>
+                <Text selectable style={{ color: theme.primaryText, fontSize: getScaled(14) }}>{exportText}</Text>
+              </ScrollView>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
+                <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowExportModal(false)}>
+                  <Text style={styles.buttonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };

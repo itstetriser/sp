@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebase';
 import { useFontSize } from '../FontSizeContext';
 import { useTheme } from '../ThemeContext';
@@ -16,6 +16,7 @@ const FlowDetailScreen = ({ route, navigation }: any) => {
   const [story, setStory] = useState<FlowStory | null>(null);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<Record<string, any>>({});
+  const [isPro, setIsPro] = useState<boolean>(false);
 
   const getScaledFontSize = (baseSize: number) => Math.round(baseSize * getFontSizeMultiplier());
 
@@ -31,31 +32,30 @@ const FlowDetailScreen = ({ route, navigation }: any) => {
     const user = auth.currentUser;
     if (user) {
       const userSnap = await getDoc(doc(db, 'users', user.uid));
-      if (userSnap.exists()) setProgress((userSnap.data() as any).progress || {});
+      if (userSnap.exists()) {
+        const userData = userSnap.data() as any;
+        setProgress(userData.progress || {});
+        setIsPro(!!userData.isPro);
+      }
     }
     setLoading(false);
   };
 
   useEffect(() => { fetch(); }, [storyId]);
 
-  useEffect(() => {
-    navigation.setOptions({
-      headerBackVisible: false,
-      headerLeft: () => (
-        <TouchableOpacity onPress={() => navigation.replace('FlowStoryScreen')} style={{ paddingHorizontal: 12 }}>
-          <Ionicons name="arrow-back" size={24} color={theme.primaryText} />
-        </TouchableOpacity>
-      )
-    });
-  }, [navigation, theme.primaryText]);
+  // Header config now handled at stack level - navigation will use standard back button
 
   const isLocked = (index: number, chapter: FlowChapter) => {
     if (index === 0) return false;
     const prev = story?.chapters[index - 1];
     if (!prev) return false;
     const pct = progress[`flow_${storyId}_${prev.id}_percentage`];
-    return !(pct && pct >= 70);
+    const lockedByProgress = !(pct && pct >= 70);
+    const proLocked = !isPro && index >= 3; // 4th chapter (index 3) and beyond require Pro
+    return lockedByProgress || proLocked;
   };
+
+  const isProLocked = (index: number) => (!isPro && index >= 3);
 
   const chapterStatus = (chapter: FlowChapter) => {
     const pct = progress[`flow_${storyId}_${chapter.id}_percentage`];
@@ -72,6 +72,25 @@ const FlowDetailScreen = ({ route, navigation }: any) => {
   };
 
   const format2 = (n: number) => n.toString().padStart(2, '0');
+
+  const handleLockedPress = (index: number, chapter: FlowChapter) => {
+    if (isProLocked(index)) {
+      Alert.alert(
+        'Get Pro to Continue',
+        'Chapters 4 and beyond are available with a Pro account.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Buy Pro', onPress: () => navigation.navigate('Settings' as never) },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Chapter locked',
+        'Complete the previous chapter with at least 70% to unlock this chapter.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
 
   if (loading) {
     return (
@@ -90,7 +109,7 @@ const FlowDetailScreen = ({ route, navigation }: any) => {
           {(story.imageUrl || (story.emoji && story.emoji.startsWith('http'))) ? (
             <Image source={{ uri: story.imageUrl || story.emoji }} style={styles.heroImage} resizeMode="cover" />
           ) : (
-            <View style={[styles.heroImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surfaceColor }]}>
+            <View style={[styles.heroImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surfaceColor }]}> 
               <Text style={{ fontSize: 64 }}>{story.emoji}</Text>
             </View>
           )}
@@ -110,11 +129,13 @@ const FlowDetailScreen = ({ route, navigation }: any) => {
               <TouchableOpacity
                 key={chapter.id}
                 style={[styles.chapterCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, opacity: locked ? 0.6 : 1 }]}
-                disabled={locked}
-                onPress={() => navigation.navigate('FlowChapterIntroScreen', { storyId, chapter, storyTitle: story.title, startIndex: getStartIndex(chapter) })}
+                onPress={() => {
+                  if (locked) return handleLockedPress(index, chapter);
+                  navigation.navigate('FlowChapterIntroScreen', { storyId, chapter, storyTitle: story.title, startIndex: getStartIndex(chapter) });
+                }}
               >
                 <View style={styles.chapterRow}>
-                  <View style={[styles.numberPill, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}>
+                  <View style={[styles.numberPill, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}> 
                     <Text style={[styles.numberText, { color: theme.primaryText }]}>{format2(index + 1)}</Text>
                   </View>
                   <Text style={[styles.chapterName, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]} numberOfLines={1}>

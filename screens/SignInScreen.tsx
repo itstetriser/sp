@@ -266,7 +266,7 @@ const SignInScreen = () => {
             
             {!emailSent ? (
               <>
-                <Text style={[styles.modalText, { color: theme.primaryText }]}> 
+                <Text style={[styles.modalText, { color: theme.primaryText }]}>
                   Enter your email address and we'll send you a link to reset your password.
                 </Text>
                 <TextInput

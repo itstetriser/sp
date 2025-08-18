@@ -59,10 +59,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
     return Math.round(baseSize * multiplier);
   };
 
-  // Ensure no back button at root
-  useEffect(() => {
-    navigation.setOptions({ headerBackVisible: false, headerLeft: () => null });
-  }, [navigation]);
+  // Remove custom header config since it's handled at stack level
 
   const fetchStories = async () => {
     try {
@@ -110,7 +107,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}> 
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Flow</Text>
+        <Text style={[styles.headerTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Stories</Text>
         {isAdmin && (
           <TouchableOpacity style={[styles.adminButton, { backgroundColor: theme.primary }]} onPress={() => navigation.navigate('FlowAdminPanel')}>
             <Ionicons name="settings" size={20} color="#fff" />
@@ -164,23 +161,23 @@ const CARD_HEIGHT = 100;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
   headerTitle: { fontWeight: 'bold' },
   adminButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  levelFiltersWrapper: { marginTop: 4 },
+  levelFiltersWrapper: { marginTop: 4, marginBottom: 16 },
   levelFiltersContainer: { },
   levelFiltersContent: { paddingHorizontal: 12, gap: 8 },
   levelTab: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, borderWidth: 1 },
   levelTabText: { },
-  listContainer: { paddingHorizontal: 16 },
-  storyCard: { borderRadius: 12, marginBottom: 12, overflow: 'hidden' },
-  storyContent: { flexDirection: 'row', padding: 12 },
-  storyImageContainer: { width: 100, height: CARD_HEIGHT - 24, marginRight: 12, borderRadius: 12, overflow: 'hidden' },
+  listContainer: { paddingHorizontal: 16, paddingTop: 8 },
+  storyCard: { borderRadius: 12, marginBottom: 16, overflow: 'hidden' },
+  storyContent: { flexDirection: 'row', padding: 16 },
+  storyImageContainer: { width: 100, height: CARD_HEIGHT - 24, marginRight: 16, borderRadius: 12, overflow: 'hidden' },
   storyImage: { width: '100%', height: '100%' },
   storyImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   storyEmojiLarge: { fontSize: 40 },
   storyInfo: { flex: 1, justifyContent: 'center' },
-  storyTitle: { fontWeight: 'bold', marginBottom: 4 },
+  storyTitle: { fontWeight: 'bold', marginBottom: 6 },
   storyDescription: { },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { marginTop: 8 },

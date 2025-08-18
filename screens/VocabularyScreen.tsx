@@ -42,7 +42,8 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
   const [words, setWords] = useState<WordWithSpacedRepetition[]>([]);
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState<string | null>(null);
-  const [practiceMode, setPracticeMode] = useState(false);
+  // Practice mode moved to its own screen
+// const [practiceMode, setPracticeMode] = useState(false);
   const [practiceWords, setPracticeWords] = useState<WordWithSpacedRepetition[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -283,22 +284,12 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
   // Practice logic
   const startReview = () => {
     const dueWords = getWordsDueForReview();
-    
-    // Add haptic feedback for starting practice
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    if (dueWords.length > 0) {
-      // Use words due for review
-      setPracticeWords(dueWords);
-    } else {
-      // Use random words from the list
-      const randomWords = getRandomWords(10);
-      setPracticeWords(randomWords);
-    }
-    
+    const selected = dueWords.length > 0 ? dueWords : getRandomWords(10);
+    setPracticeWords(selected);
     setCurrentIdx(0);
     setFlipped(false);
-    setPracticeMode(true);
+    (navigation as any).navigate('Practice', { words: selected, startIndex: 0 });
   };
 
   const handleSwipe = async (direction: 'left' | 'right' | 'bottom') => {
@@ -317,7 +308,6 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
     
     if (!word) {
       console.log('No word found, ending practice');
-      setPracticeMode(false);
       setCurrentRoute?.('Words');
       return;
     }
@@ -347,7 +337,6 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
     
     if (newPracticeWords.length === 0) {
       console.log('No more words, ending practice');
-      setPracticeMode(false);
       setCurrentRoute?.('Words');
       setCurrentIdx(0);
       setFlipped(false);
@@ -418,7 +407,6 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
     }
     const word = practiceWords[currentIdx];
     if (!word) {
-      setPracticeMode(false);
       setCurrentRoute?.('Words');
       return null;
     }
@@ -432,28 +420,53 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
         {/* Main flashcard with colored extensions */}
         <View style={styles.flashcardWithExtensions}>
           {/* Left extension - HARD */}
-          <View style={[styles.leftExtension, { backgroundColor: theme.error }]}>
-            <View style={{ transform: [{ rotate: '-90deg' }] }}>
-              <Text style={[styles.extensionText, { color: '#fff' }]} numberOfLines={1}>
+          <View style={styles.leftExtension}>
+            <View style={{ 
+              transform: [{ rotate: '-90deg' }],
+              backgroundColor: themeMode === 'dark' ? '#FFFFFF' : '#000000',
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: theme.borderColor
+            }}>
+              <Text style={[styles.extensionText, { color: '#FF0000' }]} numberOfLines={1}>
                 HARD
               </Text>
             </View>
           </View>
 
           {/* Right extension - EASY */}
-          <View style={[styles.rightExtension, { backgroundColor: theme.warning }]}>
-            <View style={{ transform: [{ rotate: '90deg' }] }}>
-              <Text style={[styles.extensionText, { color: '#fff' }]} numberOfLines={1}>
+          <View style={styles.rightExtension}>
+            <View style={{ 
+              transform: [{ rotate: '90deg' }],
+              backgroundColor: themeMode === 'dark' ? '#FFFFFF' : '#000000',
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: theme.borderColor
+            }}>
+              <Text style={[styles.extensionText, { color: '#FFA500' }]} numberOfLines={1}>
                 EASY
               </Text>
             </View>
           </View>
 
           {/* Bottom extension - LEARNED */}
-          <View style={[styles.bottomExtension, { backgroundColor: theme.success }]}>
-            <Text style={[styles.extensionText, { color: '#fff' }]} numberOfLines={1}>
+          <View style={styles.bottomExtension}>
+            <View style={{ 
+              backgroundColor: themeMode === 'dark' ? '#FFFFFF' : '#000000',
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: theme.borderColor
+            }}>
+              <Text style={[styles.extensionText, { color: '#008000' }]} numberOfLines={1}>
               LEARNED
             </Text>
+            </View>
           </View>
 
           {/* Main flashcard */}
@@ -461,14 +474,7 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
             {...panResponder.panHandlers}
             style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]}
           >
-            {/* Instructions */}
-            <View style={{ position: 'absolute', top: 16, left: 16, right: 16, zIndex: 10 }}>
-              <View style={{ backgroundColor: theme.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
-                <Text style={{ color: '#fff', fontSize: 12, textAlign: 'center', fontWeight: 'bold' }}>
-                  Swipe RIGHT = Easy • Swipe LEFT = Hard • Swipe DOWN = Learned
-                </Text>
-              </View>
-            </View>
+
 
             {/* Swipe feedback overlay on card */}
             <>
@@ -599,8 +605,15 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
                         <Text style={[styles.definitionText, { color: theme.primaryText }]}>
                           {word.definition}
                         </Text>
+                    {word.equivalent && (
+                          <Text style={[styles.definitionText, { color: theme.accentText, marginTop: 8, fontSize: 16 }]}>
+                          {word.equivalent}
+                        </Text>
+                        )}
                       </View>
                     )}
+                    
+
                     
                     {/* Examples Section */}
                     {(word.example1 || word.example2) && (
@@ -801,7 +814,10 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
             shadowRadius: 4,
             opacity: words.length > 0 ? 1 : 0.6,
           }}
-          onPress={words.length > 0 ? startReview : undefined}
+          onPress={() => {
+            if (words.length === 0) return;
+            (navigation as any).navigate('Practice', { words, startIndex: 0 });
+          }}
           activeOpacity={words.length > 0 ? 0.8 : 1}
           disabled={words.length === 0}
         >
@@ -817,20 +833,7 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
       </View>
       
 
-      {/* Practice Modal/Overlay */}
-      {practiceMode && (
-        <View style={[styles.practiceOverlay, { backgroundColor: theme.overlayColor }]}>
-                        <TouchableOpacity style={styles.practiceClose} onPress={() => {
-                setPracticeMode(false);
-                setCurrentRoute?.('Words');
-                // Refresh words data when practice is closed
-                fetchWords();
-              }}>
-            <Text style={{ fontSize: getScaledFontSize(28), color: theme.error, fontWeight: 'bold' }}>×</Text>
-          </TouchableOpacity>
-          {renderFlashcard()}
-        </View>
-      )}
+      {/* Practice was moved to its own screen (PracticeScreen) */}
 
       {/* Learned Words Modal */}
       {showLearnedWords && (
@@ -1292,42 +1295,36 @@ const styles = StyleSheet.create({
   },
   leftExtension: {
     position: 'absolute',
-    left: -80,
-    top: 15,
-    width: 80,
-    height: 570,
+    left: -60,
+    top: 50,
+    width: 60,
+    height: 500,
     justifyContent: 'center',
     alignItems: 'center',
-    borderTopLeftRadius: 20,
-    borderBottomLeftRadius: 20,
     zIndex: 5,
   },
   rightExtension: {
     position: 'absolute',
-    right: -80,
-    top: 15,
-    width: 80,
-    height: 570,
+    right: -60,
+    top: 50,
+    width: 60,
+    height: 500,
     justifyContent: 'center',
     alignItems: 'center',
-    borderTopRightRadius: 20,
-    borderBottomRightRadius: 20,
     zIndex: 5,
   },
   bottomExtension: {
     position: 'absolute',
-    bottom: -60,
-    left: 15,
-    width: SCREEN_WIDTH * 0.62,
-    height: 60,
+    bottom: -40,
+    left: 50,
+    width: SCREEN_WIDTH * 0.5,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
     zIndex: 5,
   },
   extensionText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
   },
