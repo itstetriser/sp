@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebase';
@@ -70,19 +70,19 @@ const EmojiStoryScreen = ({ navigation, setCurrentRoute }: any) => {
   const fetchStories = async () => {
     try {
       setLoading(true);
-      const querySnapshot = await getDocs(collection(db, 'stories'));
+      // Use server-side filtering instead of client-side
+      const q = query(collection(db, 'stories'), where('active', '==', true));
+      const querySnapshot = await getDocs(q);
       const storiesData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Story[];
       
-      // Filter out inactive stories and inactive chapters within active stories
-      const activeStories = storiesData
-        .filter(story => story.active === true) // Only show active stories
-        .map(story => ({
-          ...story,
-          chapters: story.chapters.filter(chapter => chapter.active === true) // Only show active chapters
-        }));
+      // Filter chapters on client-side (smaller dataset)
+      const activeStories = storiesData.map(story => ({
+        ...story,
+        chapters: story.chapters.filter(chapter => chapter.active === true)
+      }));
       
       setStories(activeStories);
     } catch (error) {

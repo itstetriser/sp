@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebase';
@@ -119,7 +119,6 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
   );
 
   const handleMarkAsLearned = async (word: WordWithSpacedRepetition) => {
-    // Add haptic feedback for marking as learned
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     const user = auth.currentUser;
@@ -131,9 +130,9 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
       if (userSnap.exists()) {
         const currentWords = userSnap.data().myWords || [];
         const updatedWords = currentWords.map((w: any) => {
-          if ((typeof w === 'string' ? w : w.word) === word.word) {
+          if (typeof w === 'string' ? w === word.word : w.word === word.word) {
             return {
-              ...word,
+              ...w,
               masteryLevel: 'learned',
               learnedAt: Date.now(),
               consecutiveCorrect: (word.consecutiveCorrect || 0) + 1,
@@ -145,7 +144,12 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
           }
           return w;
         });
-        await updateDoc(userRef, { myWords: updatedWords });
+        
+        // Use batch write to reduce costs
+        const batch = writeBatch(db);
+        batch.update(userRef, { myWords: updatedWords });
+        await batch.commit();
+        
         setWords(prev => prev.map(w => w.word === word.word ? {
           ...w,
           masteryLevel: 'learned',
@@ -163,7 +167,6 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
   };
 
   const handleRemoveWord = async (word: WordWithSpacedRepetition) => {
-    // Add haptic feedback for word removal
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     const user = auth.currentUser;
@@ -177,7 +180,12 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
         const updatedWords = currentWords.filter((w: any) => 
           (typeof w === 'string' ? w : w.word) !== word.word
         );
-        await updateDoc(userRef, { myWords: updatedWords });
+        
+        // Use batch write to reduce costs
+        const batch = writeBatch(db);
+        batch.update(userRef, { myWords: updatedWords });
+        await batch.commit();
+        
         setWords(prev => prev.filter(w => w.word !== word.word));
         setWordCount?.(updatedWords.length);
       }

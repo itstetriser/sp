@@ -1,3 +1,4 @@
+import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
@@ -30,7 +31,11 @@ interface WordWithSpacedRepetition {
 
 const REVIEW_INTERVALS = [1, 3, 7, 14, 30, 90, 180];
 
-const PracticeScreen = ({ route, navigation }: any) => {
+// Spacing constants to keep side labels (HARD/EASY) gap equal to bottom (LEARNED) gap
+const LABEL_GAP = 10; // distance between flashcard edge and label
+const SIDE_LABEL_WIDTH = 90; // width of the vertical label container
+
+const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const { theme, themeMode } = useTheme();
   const { getFontSizeMultiplier } = useFontSize();
   const getScaledFontSize = (baseSize: number) => Math.round(baseSize * (getFontSizeMultiplier() || 1));
@@ -49,6 +54,20 @@ const PracticeScreen = ({ route, navigation }: any) => {
   useEffect(() => {
     navigation?.setOptions?.({ headerTitle: 'Practice' });
   }, [navigation]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setCurrentRoute?.('Practice');
+      return () => setCurrentRoute?.('VocabularyScreen');
+    }, [setCurrentRoute])
+  );
+
+  useEffect(() => {
+    const unsub = navigation?.addListener?.('beforeRemove', () => {
+      setCurrentRoute?.('VocabularyScreen');
+    });
+    return unsub;
+  }, [navigation, setCurrentRoute]);
 
   async function updateWordReview(word: WordWithSpacedRepetition, action: 'easy' | 'hard' | 'learned') {
     if (action === 'learned') {
@@ -173,19 +192,19 @@ const PracticeScreen = ({ route, navigation }: any) => {
           {/* HARD */}
           <View style={styles.leftExtension}>
             <View style={{ transform: [{ rotate: '-90deg' }], backgroundColor: themeMode === 'dark' ? '#FFFFFF' : '#000000', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: theme.borderColor }}>
-              <Text style={[styles.extensionText, { color: '#FF0000' }]} numberOfLines={1}>HARD</Text>
+              <Text style={[styles.extensionText, { color: '#FF0000', fontSize: getScaledFontSize(16) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} ellipsizeMode="clip">HARD ↑</Text>
             </View>
           </View>
           {/* EASY */}
           <View style={styles.rightExtension}>
             <View style={{ transform: [{ rotate: '90deg' }], backgroundColor: themeMode === 'dark' ? '#FFFFFF' : '#000000', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: theme.borderColor }}>
-              <Text style={[styles.extensionText, { color: '#FFA500' }]} numberOfLines={1}>EASY</Text>
+              <Text style={[styles.extensionText, { color: '#FFA500', fontSize: getScaledFontSize(16) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} ellipsizeMode="clip">↑ EASY</Text>
             </View>
           </View>
           {/* LEARNED */}
           <View style={styles.bottomExtension}>
             <View style={{ backgroundColor: themeMode === 'dark' ? '#FFFFFF' : '#000000', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: theme.borderColor }}>
-              <Text style={[styles.extensionText, { color: '#008000' }]} numberOfLines={1}>LEARNED</Text>
+              <Text style={[styles.extensionText, { color: '#008000', fontSize: getScaledFontSize(16) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} ellipsizeMode="clip">LEARNED ↓</Text>
             </View>
           </View>
 
@@ -242,10 +261,10 @@ const styles = StyleSheet.create({
   flashcardContainer: { position: 'relative', width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, alignSelf: 'center' },
   flashcardWithExtensions: { position: 'relative', width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, justifyContent: 'center', alignItems: 'center', padding: 28 },
   flashcard: { width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, elevation: 8, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, justifyContent: 'center', alignItems: 'center', padding: 28 },
-  leftExtension: { position: 'absolute', left: -60, top: 50, width: 60, height: 500, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
-  rightExtension: { position: 'absolute', right: -60, top: 50, width: 60, height: 500, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
-  bottomExtension: { position: 'absolute', bottom: -40, left: 50, width: SCREEN_WIDTH * 0.5, height: 40, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
-  extensionText: { fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
+  leftExtension: { position: 'absolute', left: -(SIDE_LABEL_WIDTH + LABEL_GAP), top: 50, width: SIDE_LABEL_WIDTH, height: 500, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
+  rightExtension: { position: 'absolute', right: -(SIDE_LABEL_WIDTH + LABEL_GAP), top: 50, width: SIDE_LABEL_WIDTH, height: 500, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
+  bottomExtension: { position: 'absolute', bottom: -LABEL_GAP, left: 32, width: SCREEN_WIDTH * 0.55, height: 40, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
+  extensionText: { fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
   cardOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, alignItems: 'center', justifyContent: 'center', zIndex: 30 },
   overlayText: { color: '#fff', fontSize: 32, fontWeight: 'bold', textAlign: 'center' },
 });

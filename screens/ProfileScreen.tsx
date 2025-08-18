@@ -236,39 +236,7 @@ const ProfileScreen = () => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Account Actions</Text>
           
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.cardColor }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Coming Soon', 'Export data feature will be available in a future update.');
-            }}
-          >
-            <Text style={[styles.actionIcon, { color: theme.primary }]}>📤</Text>
-            <View style={styles.actionContent}>
-              <Text style={[styles.actionTitle, { color: theme.primaryText }]}>Export Data</Text>
-              <Text style={[styles.actionSubtitle, { color: theme.secondaryText }]}>
-                Download your learning progress
-              </Text>
-            </View>
-            <Text style={[styles.actionArrow, { color: theme.secondaryText }]}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.cardColor }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Coming Soon', 'Privacy settings will be available in a future update.');
-            }}
-          >
-            <Text style={[styles.actionIcon, { color: theme.primary }]}>🔒</Text>
-            <View style={styles.actionContent}>
-              <Text style={[styles.actionTitle, { color: theme.primaryText }]}>Privacy Settings</Text>
-              <Text style={[styles.actionSubtitle, { color: theme.secondaryText }]}>
-                Manage your data and privacy
-              </Text>
-            </View>
-            <Text style={[styles.actionArrow, { color: theme.secondaryText }]}>›</Text>
-          </TouchableOpacity>
+          
         </View>
       </ScrollView>
 

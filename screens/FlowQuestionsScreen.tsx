@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useFocusEffect } from '@react-navigation/native';
+import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { Alert, Animated, LayoutAnimation, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, UIManager, View } from 'react-native';
 import { useFontSize } from '../FontSizeContext';
@@ -23,7 +24,7 @@ interface FlowQuestion {
 
 type Option = { text: string; emoji: string; correct: boolean };
 
-const FlowQuestionsScreen = ({ route, navigation }: any) => {
+const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const { chapter, storyId, startIndex = 0 } = route.params as { 
     chapter: { 
       id: string; 
@@ -63,6 +64,20 @@ const FlowQuestionsScreen = ({ route, navigation }: any) => {
     }
   }, []);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      setCurrentRoute?.('FlowQuestionsScreen');
+      return () => setCurrentRoute?.('FlowStoryScreen');
+    }, [setCurrentRoute])
+  );
+
+  useEffect(() => {
+    const unsub = navigation?.addListener?.('beforeRemove', () => {
+      setCurrentRoute?.('FlowStoryScreen');
+    });
+    return unsub;
+  }, [navigation, setCurrentRoute]);
+
   // Load user Pro status
   useEffect(() => {
     const load = async () => {
@@ -90,7 +105,7 @@ const FlowQuestionsScreen = ({ route, navigation }: any) => {
         const userSnap = await getDoc(doc(db, 'users', user.uid));
         if (userSnap.exists()) {
           const userData = userSnap.data() as any;
-          setUserWords(userData.words || []);
+          setUserWords(userData.myWords || []);
         }
       } catch (e) {
         console.error('Failed to load user words:', e);
@@ -119,9 +134,14 @@ const FlowQuestionsScreen = ({ route, navigation }: any) => {
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
           const userData = userSnap.data() as any;
-          const existingWords = userData.words || [];
+          const existingWords = userData.myWords || [];
           const filteredWords = existingWords.filter((w: any) => w.word !== word);
-          await updateDoc(userRef, { words: filteredWords });
+          
+          // Use batch write to reduce costs
+          const batch = writeBatch(db);
+          batch.update(userRef, { myWords: filteredWords });
+          await batch.commit();
+          
           setUserWords(filteredWords);
         }
       } else {
@@ -136,7 +156,7 @@ const FlowQuestionsScreen = ({ route, navigation }: any) => {
           const userSnap = await getDoc(userRef);
           if (userSnap.exists()) {
             const userData = userSnap.data() as any;
-            const existingWords = userData.words || [];
+            const existingWords = userData.myWords || [];
             const newWord = {
               ...vocabItem,
               addedAt: Date.now(),
@@ -151,7 +171,12 @@ const FlowQuestionsScreen = ({ route, navigation }: any) => {
               masteryLevel: 'new' as const,
             };
             const updatedWords = [...existingWords, newWord];
-            await updateDoc(userRef, { words: updatedWords });
+            
+            // Use batch write to reduce costs
+            const batch = writeBatch(db);
+            batch.update(userRef, { myWords: updatedWords });
+            await batch.commit();
+            
             setUserWords(updatedWords);
           }
         }
@@ -199,7 +224,11 @@ const FlowQuestionsScreen = ({ route, navigation }: any) => {
       const data = snap.exists() ? snap.data() : ({} as any);
       const progress = (data as any).progress || {};
       progress[`flow_${storyId}_${chapter.id}_lastIndex`] = index;
-      await updateDoc(userRef, { progress });
+      
+      // Use batch write to reduce costs
+      const batch = writeBatch(db);
+      batch.update(userRef, { progress });
+      await batch.commit();
     } catch (e) {
       console.error('Failed saving lastIndex', e);
     }
@@ -215,7 +244,11 @@ const FlowQuestionsScreen = ({ route, navigation }: any) => {
       const progress = { ...(data.progress || {}) };
       delete progress[`flow_${storyId}_${chapter.id}_percentage`];
       delete progress[`flow_${storyId}_${chapter.id}_lastIndex`];
-      await updateDoc(userRef, { progress });
+      
+      // Use batch write to reduce costs
+      const batch = writeBatch(db);
+      batch.update(userRef, { progress });
+      await batch.commit();
     } catch (e) {
       console.error('Failed deleting progress', e);
     }
@@ -223,21 +256,20 @@ const FlowQuestionsScreen = ({ route, navigation }: any) => {
 
   const persistProgress = async (finalScore: number) => {
     try {
-      setSaving(true);
       const user = auth.currentUser;
       if (!user) return;
       const userRef = doc(db, 'users', user.uid);
       const snap = await getDoc(userRef);
-      const data = snap.exists() ? snap.data() : {} as any;
-      const progress = (data as any).progress || {};
-      const percentage = Math.round((finalScore / totalQuestions) * 100);
-      progress[`flow_${storyId}_${chapter.id}_percentage`] = percentage;
-      progress[`flow_${storyId}_${chapter.id}_lastIndex`] = totalQuestions; // mark completed
-      await updateDoc(userRef, { progress });
+      const data = snap.exists() ? snap.data() : ({} as any);
+      const progress = { ...(data.progress || {}) };
+      progress[`flow_${storyId}_${chapter.id}_percentage`] = finalScore;
+      
+      // Use batch write to reduce costs
+      const batch = writeBatch(db);
+      batch.update(userRef, { progress });
+      await batch.commit();
     } catch (e) {
-      console.error('Failed saving flow progress', e);
-    } finally {
-      setSaving(false);
+      console.error('Failed saving progress', e);
     }
   };
 
@@ -537,10 +569,18 @@ const FlowQuestionsScreen = ({ route, navigation }: any) => {
 
         {/* Next preview below (subtle, no options, and no 'NPC:' label) */}
         {next && (
-          <View style={{ opacity: 0.5 }}>
-            <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(14), marginBottom: 8, fontStyle: 'italic' }}>Next question:</Text>
-            <View style={[styles.questionCard, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}> 
-              <Text style={[styles.npcSentence, { color: theme.secondaryText, fontSize: getScaledFontSize(14), fontStyle: 'italic' }]}>{next.npcSentence}</Text>
+          <View style={{ opacity: 0.9 }}>
+            <Text style={{ color: theme.primary, fontSize: getScaledFontSize(16), fontWeight: 'bold', marginBottom: 2 }}>Next question</Text>
+            <View style={[
+              styles.questionCard,
+              { 
+                backgroundColor: theme.primary + '10',
+                borderColor: theme.primary,
+                borderLeftWidth: 3,
+                paddingLeft: 14
+              }
+            ]}> 
+              <Text style={[styles.npcSentence, { color: theme.primaryText, fontSize: getScaledFontSize(16) }]}>{next.npcSentence}</Text>
             </View>
           </View>
         )}

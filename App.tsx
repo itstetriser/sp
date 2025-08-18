@@ -6,6 +6,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Animated, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth, db } from './firebase';
 import { FontSizeProvider, useFontSize } from './FontSizeContext';
 import AdminPanelScreen from './screens/AdminPanelScreen';
@@ -96,12 +97,13 @@ const WordsStackScreen = ({ wordCount, setWordCount, setCurrentRoute, triggerWor
       />
       <WordsStack.Screen
         name="Practice"
-        component={PracticeScreen}
         options={{
           headerTitle: "Practice",
           headerBackTitle: "Words",
         }}
-      />
+      >
+        {props => <PracticeScreen {...props} setCurrentRoute={setCurrentRoute} />}
+      </WordsStack.Screen>
     </WordsStack.Navigator>
   );
 }
@@ -220,7 +222,7 @@ const SettingsStackScreen = () => {
 }
 
 const FlowStack = createNativeStackNavigator();
-const FlowStackScreen = () => {
+const FlowStackScreen = ({ setCurrentRoute }: { setCurrentRoute: (route: string) => void }) => {
   const { theme } = useTheme();
   const { getFontSizeMultiplier } = useFontSize();
   const getScaledFontSize = (baseSize: number) => Math.round(baseSize * getFontSizeMultiplier());
@@ -260,12 +262,13 @@ const FlowStackScreen = () => {
       />
       <FlowStack.Screen 
         name="FlowQuestionsScreen" 
-        component={FlowQuestionsScreen}
         options={{
           headerTitle: "Questions",
           headerBackTitle: "Chapter",
         }}
-      />
+      >
+        {props => <FlowQuestionsScreen {...props} setCurrentRoute={setCurrentRoute} />}
+      </FlowStack.Screen>
       <FlowStack.Screen 
         name="FlowAdminPanel" 
         component={FlowAdminPanel}
@@ -326,6 +329,7 @@ function AppContent() {
   }, [user]);
 
   function CustomTabBar({ state, descriptors, navigation }: any) {
+    const insets = useSafeAreaInsets();
     const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
       Story: 'library',
       Words: 'book',
@@ -333,11 +337,16 @@ function AppContent() {
     };
     
     // Hide tab bar in specific nested screens
-    const currentRouteName = state.routes[state.index].name;
-    if ((currentRouteName === 'Words' && currentRoute === 'VocabularyScreen') ||
-        (currentRouteName === 'Story' && (currentRoute === 'FlowQuestionsScreen'))) {
-      return null;
-    }
+    const currentTabRoute = state.routes[state.index];
+    const nestedState: any = (currentTabRoute as any).state;
+    const focusedNestedName = nestedState?.routes?.[nestedState.index]?.name;
+    const currentRouteName = currentTabRoute.name;
+    const nestedHidden = (
+      (currentRouteName === 'Words' && focusedNestedName === 'Practice') ||
+      (currentRouteName === 'Story' && focusedNestedName === 'FlowQuestionsScreen')
+    );
+    const currentRouteHidden = currentRoute === 'Practice' || currentRoute === 'FlowQuestionsScreen';
+    const shouldHide = nestedHidden && currentRouteHidden;
 
     const rootScreensByTab: Record<string, string> = {
       Story: 'FlowStoryScreen',
@@ -345,15 +354,20 @@ function AppContent() {
       Settings: 'Settings',
     };
 
+    const bottomInset = insets?.bottom || 0;
+    const visibleHeight = 52 + bottomInset + 2; // base height + inset + top padding
     return (
       <View style={{ 
         flexDirection: 'row', 
         backgroundColor: theme.backgroundColor, 
-        borderTopWidth: 1, 
+        borderTopWidth: shouldHide ? 0 : 1, 
         borderTopColor: theme.dividerColor,
-        paddingBottom: 8,
-        paddingTop: 4,
-        height: 60
+        paddingBottom: shouldHide ? 0 : bottomInset,
+        paddingTop: shouldHide ? 0 : 2,
+        height: shouldHide ? 0 : visibleHeight,
+        overflow: 'hidden',
+        opacity: shouldHide ? 0 : 1,
+        pointerEvents: shouldHide ? 'none' as const : 'auto' as const
       }}>
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
@@ -407,7 +421,7 @@ function AppContent() {
                   </Animated.View>
                 </TouchableOpacity>
               </View>
-              {index === 0 && (
+              {index < state.routes.length - 1 && (
                 <View style={{ width: 1, height: 32, backgroundColor: theme.dividerColor, alignSelf: 'center' }} />
               )}
             </React.Fragment>
@@ -440,7 +454,7 @@ function AppContent() {
         >
           {/* Leftmost: Story = Flow stack */}
           <Tab.Screen name="Story">
-            {() => <FlowStackScreen />}
+            {() => <FlowStackScreen setCurrentRoute={setCurrentRoute} />}
           </Tab.Screen>
           <Tab.Screen name="Words">
             {() => <WordsStackScreen wordCount={wordCount} setWordCount={setWordCount} setCurrentRoute={setCurrentRoute} triggerWordsTabAnimation={triggerWordsTabAnimation} />}

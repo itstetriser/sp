@@ -153,21 +153,7 @@ const DeleteAccountScreen = () => {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Consider these alternatives:</Text>
           
-          <TouchableOpacity
-            style={[styles.alternativeButton, { backgroundColor: theme.cardColor }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              Alert.alert('Coming Soon', 'Data export feature will be available in a future update.');
-            }}
-          >
-            <Text style={[styles.alternativeIcon, { color: theme.primary }]}>📤</Text>
-            <View style={styles.alternativeContent}>
-              <Text style={[styles.alternativeTitle, { color: theme.primaryText }]}>Export Your Data</Text>
-              <Text style={[styles.alternativeSubtitle, { color: theme.secondaryText }]}>
-                Download your learning progress before deleting
-              </Text>
-            </View>
-          </TouchableOpacity>
+          
 
           <TouchableOpacity
             style={[styles.alternativeButton, { backgroundColor: theme.cardColor }]}
