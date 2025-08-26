@@ -336,17 +336,8 @@ function AppContent() {
       Settings: 'settings',
     };
     
-    // Hide tab bar in specific nested screens
-    const currentTabRoute = state.routes[state.index];
-    const nestedState: any = (currentTabRoute as any).state;
-    const focusedNestedName = nestedState?.routes?.[nestedState.index]?.name;
-    const currentRouteName = currentTabRoute.name;
-    const nestedHidden = (
-      (currentRouteName === 'Words' && focusedNestedName === 'Practice') ||
-      (currentRouteName === 'Story' && focusedNestedName === 'FlowQuestionsScreen')
-    );
-    const currentRouteHidden = currentRoute === 'Practice' || currentRoute === 'FlowQuestionsScreen';
-    const shouldHide = nestedHidden && currentRouteHidden;
+    // Keep tab bar always visible
+    const shouldHide = false;
 
     const rootScreensByTab: Record<string, string> = {
       Story: 'FlowStoryScreen',

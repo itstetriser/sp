@@ -3,15 +3,15 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import { GoogleAuthProvider, sendPasswordResetEmail, signInWithCredential, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
-import { collection, getDocs } from 'firebase/firestore';
+ 
 import React, { useRef, useState } from 'react';
 import { Alert, Button, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 import { useTheme } from '../ThemeContext';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const DEFAULT_TEST_PASSWORD = '123456'; // Set your test password for all test users
+ 
 
 const SignInScreen = () => {
   const navigation = useNavigation();
@@ -25,10 +25,7 @@ const SignInScreen = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
 
-  // Dev quick login
-  const [devUsers, setDevUsers] = useState<any[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [showDevList, setShowDevList] = useState(true);
+  
 
   // Refs for keyboard navigation
   const emailInputRef = useRef<TextInput>(null);
@@ -64,32 +61,9 @@ const SignInScreen = () => {
     }
   }, [response]);
 
-  React.useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        setLoadingUsers(true);
-        const snap = await getDocs(collection(db, 'users'));
-        const items = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-        setDevUsers(items);
-      } catch (e: any) {
-        console.log('Fetch users failed', e);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-    fetchUsers();
-  }, []);
+  
 
-  const handleQuickLogin = async (selectedEmail: string) => {
-    setLoading(true);
-    setLoginError('');
-    try {
-      await signInWithEmailAndPassword(auth, selectedEmail, DEFAULT_TEST_PASSWORD);
-    } catch (e: any) {
-      Alert.alert('Quick Login Failed', `Tried email ${selectedEmail} with the shared test password. Update DEFAULT_TEST_PASSWORD in SignInScreen.tsx or set the account password accordingly.\n\nError: ${e.message}`);
-      setLoading(false);
-    }
-  };
+  
 
   const handleSignIn = async () => {
     setLoading(true);
@@ -161,25 +135,7 @@ const SignInScreen = () => {
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.backgroundColor }]}> 
       <Text style={[styles.title, { color: theme.primaryText }]}>Sign In</Text>
 
-      {/* Dev quick login list */}
-      <View style={{ width: '100%', maxWidth: 360, marginBottom: 16 }}>
-        <TouchableOpacity onPress={() => setShowDevList(v => !v)}>
-          <Text style={{ color: theme.primary, fontWeight: 'bold', marginBottom: 8 }}>{showDevList ? 'Hide' : 'Show'} Quick Login (Dev)</Text>
-        </TouchableOpacity>
-        {showDevList && (
-          <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 10, padding: 8 }}>
-            {loadingUsers ? (
-              <Text style={{ color: theme.secondaryText }}>Loading users...</Text>
-            ) : (
-              devUsers.map((u) => (
-                <TouchableOpacity key={u.id} style={{ paddingVertical: 10 }} onPress={() => handleQuickLogin(u.email || u.id)} disabled={loading}>
-                  <Text style={{ color: theme.primaryText }}>{u.email || u.id} {u.displayName ? `• ${u.displayName}` : ''}</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-        )}
-      </View>
+      
 
       <TextInput
         style={[styles.input, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, color: theme.primaryText }]}
