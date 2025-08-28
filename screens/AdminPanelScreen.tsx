@@ -1,5 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
-import { addDoc, collection, deleteDoc, doc, DocumentData, getDoc, getDocs, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, DocumentData, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Button, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebase';
@@ -41,6 +41,7 @@ const AdminPanelScreen = () => {
   const [editingVocabFields, setEditingVocabFields] = useState({ word: '', type: '', definition: '', example1: '', example2: '', equivalent: '' });
   const [showEmojiBulkModal, setShowEmojiBulkModal] = useState(false);
   const [emojiBulkText, setEmojiBulkText] = useState('');
+  const [pendingMessagesCount, setPendingMessagesCount] = useState(0);
 
   const getScaledFontSize = (baseSize: number) => {
     const multiplier = getFontSizeMultiplier();
@@ -57,6 +58,19 @@ const AdminPanelScreen = () => {
       Alert.alert('Error', error.message);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const fetchPendingMessagesCount = async () => {
+    try {
+      const messagesQuery = query(
+        collection(db, 'supportMessages'),
+        where('status', '==', 'pending')
+      );
+      const querySnapshot = await getDocs(messagesQuery);
+      setPendingMessagesCount(querySnapshot.size);
+    } catch (error: any) {
+      console.error('Error fetching pending messages count:', error);
     }
   };
 
@@ -78,8 +92,9 @@ const AdminPanelScreen = () => {
               return;
             }
             
-            // If admin check passes, fetch lessons
+            // If admin check passes, fetch lessons and pending messages count
             fetchLessons();
+            fetchPendingMessagesCount();
           } else {
             Alert.alert('Access Denied', 'User not found.');
             navigation.goBack();
@@ -523,9 +538,27 @@ const AdminPanelScreen = () => {
 
   return (
     <View style={{ flex: 1, padding: 16 }}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 12 }}>
-        <Text style={{ color: '#1976D2', fontWeight: 'bold', fontSize: 16 }}>{'< Back to Map'}</Text>
-      </TouchableOpacity>
+      <View style={styles.headerContainer}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={{ color: '#1976D2', fontWeight: 'bold', fontSize: 16 }}>{'< Back to Map'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.messageIconContainer}
+          onPress={() => navigation.navigate('Messages' as never)}
+        >
+          <Text style={styles.messageIcon}>💬</Text>
+          <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+            {pendingMessagesCount} pending
+          </Text>
+          {pendingMessagesCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationText}>
+                {pendingMessagesCount > 99 ? '99+' : pendingMessagesCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
       <Text style={styles.header}>Admin Panel</Text>
       <Text style={styles.subheader}>Add New Chapter</Text>
       <View style={styles.row}>
@@ -987,6 +1020,41 @@ const styles = StyleSheet.create({
   modalButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 8,
+  },
+  messageIconContainer: {
+    position: 'relative',
+    padding: 12,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  messageIcon: {
+    fontSize: 24,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: 'bold',
   },
 });

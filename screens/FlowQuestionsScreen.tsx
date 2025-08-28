@@ -89,6 +89,20 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
     load();
   }, []);
 
+  // Web-only: warn on page refresh/close during an active chapter
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handler = (e: BeforeUnloadEvent) => {
+      // Only warn if user hasn't completed the flow yet
+      if (!showCompletion) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [showCompletion]);
+
   // Load chapter vocabulary and user's existing words
   useEffect(() => {
     const loadVocabulary = async () => {
@@ -124,6 +138,8 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
       const isSelected = selectedVocabWords.includes(word);
       let updatedWords: string[];
       
+      console.log('handleVocabToggle called:', { word, isSelected, selectedVocabWords });
+      
       if (isSelected) {
         // Remove from selection
         updatedWords = selectedVocabWords.filter(w => w !== word);
@@ -143,6 +159,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
           await batch.commit();
           
           setUserWords(filteredWords);
+          console.log('Word removed from userWords:', word);
         }
       } else {
         // Add to selection
@@ -151,6 +168,8 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         
         // Add to user's words in Firestore
         const vocabItem = chapterVocabulary.find(v => v.word === word);
+        console.log('Found vocabItem:', vocabItem);
+        
         if (vocabItem) {
           const userRef = doc(db, 'users', user.uid);
           const userSnap = await getDoc(userRef);
@@ -172,13 +191,18 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
             };
             const updatedWords = [...existingWords, newWord];
             
+            console.log('Adding word to Firestore:', { word, newWord, updatedWordsCount: updatedWords.length });
+            
             // Use batch write to reduce costs
             const batch = writeBatch(db);
             batch.update(userRef, { myWords: updatedWords });
             await batch.commit();
             
             setUserWords(updatedWords);
+            console.log('Word added to userWords:', word);
           }
+        } else {
+          console.error('vocabItem not found for word:', word);
         }
       }
     } catch (e) {
@@ -188,7 +212,9 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
   // Check if a vocabulary word is already in user's list
   const isVocabSelected = (word: string) => {
-    return userWords.some(w => w.word === word);
+    const isSelected = userWords.some(w => w.word === word);
+    console.log('isVocabSelected:', { word, isSelected, userWordsCount: userWords.length });
+    return isSelected;
   };
 
   // Ensure options are visible whenever the current question changes
@@ -262,7 +288,10 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
       const snap = await getDoc(userRef);
       const data = snap.exists() ? snap.data() : ({} as any);
       const progress = { ...(data.progress || {}) };
-      progress[`flow_${storyId}_${chapter.id}_percentage`] = finalScore;
+      
+      // Calculate percentage instead of raw score
+      const percentage = Math.round((finalScore / totalQuestions) * 100);
+      progress[`flow_${storyId}_${chapter.id}_percentage`] = percentage;
       
       // Use batch write to reduce costs
       const batch = writeBatch(db);
@@ -280,9 +309,14 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
       [
         { text: 'Stay', style: 'cancel' },
         { text: 'Leave', style: 'destructive', onPress: async () => {
-            await deleteProgress();
+            try {
+              await deleteProgress();
+            } catch (e) {
+              // Swallow errors (e.g., insufficient permissions) and still navigate back
+              console.error('deleteProgress failed, continuing navigation:', e);
+            }
             navigation.replace('FlowChapterIntroScreen', { storyId, chapter });
-          } 
+          }
         },
       ]
     );
@@ -304,11 +338,11 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         setShowCompletion(true);
         setFeedbackStep('score');
         await persistProgress(nextScore);
-      }, 3000);
+      }, 2000);
       return;
     }
 
-    // Wait 3s for feedback; then animate next question up
+    // Wait 2s for feedback; then animate next question up
     setTimeout(() => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setCurrentIndex(i => {
@@ -316,7 +350,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         persistLastIndex(ni);
         return ni;
       });
-    }, 3000);
+    }, 2000);
   };
 
   const current = chapter.questions[currentIndex];
@@ -513,7 +547,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
               </Text>
 
               {nextChapter && (
-                <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.primary, marginTop: 16 }]} onPress={() => {
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.primary, marginTop: 16 }]} onPress={async () => {
                   if (!isPro && (nextIndex ?? 0) >= 3) {
                     return Alert.alert(
                       'Get Pro to Continue',
@@ -524,6 +558,13 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
                       ]
                     );
                   }
+                  
+                  // Ensure current chapter progress is saved before navigating
+                  // Use the final score (which should be the total questions answered correctly)
+                  const finalScore = score;
+                  await persistProgress(finalScore);
+                  
+                  // Navigate to next chapter
                   navigation.replace('FlowChapterIntroScreen', { storyId, chapter: nextChapter, storyTitle: '', startIndex: 0 });
                 }}>
                   <Text style={{ color: '#fff', fontWeight: 'bold' }}>Go to Next Chapter</Text>
@@ -570,7 +611,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         {/* Next preview below (subtle, no options, and no 'NPC:' label) */}
         {next && (
           <View style={{ opacity: 0.9 }}>
-            <Text style={{ color: theme.primary, fontSize: getScaledFontSize(16), fontWeight: 'bold', marginBottom: 2 }}>Next question</Text>
+            <Text style={{ color: theme.primary, fontSize: getScaledFontSize(16), fontWeight: 'bold', marginBottom: 2 }}>Next</Text>
             <View style={[
               styles.questionCard,
               { 

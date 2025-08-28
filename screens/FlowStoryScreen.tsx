@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, updateDoc, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebase';
@@ -56,6 +56,8 @@ const FlowStoryScreen = ({ navigation }: any) => {
   // Add caching mechanism
   const [lastFetch, setLastFetch] = useState(0);
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+  const [userProgress, setUserProgress] = useState<{[key: string]: number}>({});
+  const [lastOpenedStoryId, setLastOpenedStoryId] = useState<string | null>(null);
 
   const getScaledFontSize = (baseSize: number) => {
     const multiplier = getFontSizeMultiplier();
@@ -94,6 +96,86 @@ const FlowStoryScreen = ({ navigation }: any) => {
     }
   };
 
+  const fetchUserProgress = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        setUserProgress(data.progress || {});
+        setLastOpenedStoryId(data.lastOpenedStoryId || null);
+      }
+    } catch (e) {
+      console.error('Error fetching user progress:', e);
+    }
+  };
+
+  const saveLastOpenedStory = async (storyId: string) => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { lastOpenedStoryId: storyId });
+      setLastOpenedStoryId(storyId);
+    } catch (e) {
+      console.error('Error saving last opened story:', e);
+    }
+  };
+
+  const isStoryCompleted = (story: FlowStory): boolean => {
+    if (!story.chapters || story.chapters.length === 0) return false;
+    
+    return story.chapters.every(chapter => {
+      const progressKey = `flow_${story.id}_${chapter.id}_percentage`;
+      const progress = userProgress[progressKey];
+      return progress !== undefined && progress >= 70; // 70% threshold for completion
+    });
+  };
+
+  const getSortedStories = (): FlowStory[] => {
+    let sortedStories = [...stories];
+    
+    // If there's a last opened story, put it first
+    if (lastOpenedStoryId) {
+      const lastOpenedIndex = sortedStories.findIndex(story => story.id === lastOpenedStoryId);
+      if (lastOpenedIndex !== -1) {
+        const lastOpenedStory = sortedStories.splice(lastOpenedIndex, 1)[0];
+        sortedStories.unshift(lastOpenedStory);
+      }
+    }
+    
+    // Apply other sorting
+    switch (sortBy) {
+      case 'easiest':
+        sortedStories.sort((a, b) => (a.level || '').localeCompare(b.level || ''));
+        break;
+      case 'hardest':
+        sortedStories.sort((a, b) => (b.level || '').localeCompare(a.level || ''));
+        break;
+      case 'oldest':
+        sortedStories.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        break;
+      case 'newest':
+        sortedStories.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
+    }
+    
+    // Always keep last opened story at the top if it exists
+    if (lastOpenedStoryId) {
+      const lastOpenedIndex = sortedStories.findIndex(story => story.id === lastOpenedStoryId);
+      if (lastOpenedIndex !== -1 && lastOpenedIndex !== 0) {
+        const lastOpenedStory = sortedStories.splice(lastOpenedIndex, 1)[0];
+        sortedStories.unshift(lastOpenedStory);
+      }
+    }
+    
+    return sortedStories;
+  };
+
   const checkAdmin = async () => {
     try {
       const user = auth.currentUser;
@@ -105,8 +187,8 @@ const FlowStoryScreen = ({ navigation }: any) => {
     }
   };
 
-  useEffect(() => { fetchStories(); checkAdmin(); }, []);
-  useFocusEffect(React.useCallback(() => { fetchStories(); }, []));
+  useEffect(() => { fetchStories(); checkAdmin(); fetchUserProgress(); }, []);
+  useFocusEffect(React.useCallback(() => { fetchStories(); fetchUserProgress(); }, []));
 
   if (loading) {
     return (
@@ -128,19 +210,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
     return isNaN(parsed.getTime()) ? new Date(0) : parsed;
   };
 
-  const sortedStories = [...stories].sort((a, b) => {
-    switch (sortBy) {
-      case 'easiest':
-        return (difficultyOrder[a.level] ?? 99) - (difficultyOrder[b.level] ?? 99);
-      case 'hardest':
-        return (difficultyOrder[b.level] ?? -99) - (difficultyOrder[a.level] ?? -99);
-      case 'oldest':
-        return getCreatedAtDate(a.createdAt).getTime() - getCreatedAtDate(b.createdAt).getTime();
-      case 'newest':
-      default:
-        return getCreatedAtDate(b.createdAt).getTime() - getCreatedAtDate(a.createdAt).getTime();
-    }
-  });
+  const sortedStories = getSortedStories();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}> 
@@ -157,10 +227,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
         <View style={[styles.sortContainer, isSortOpen && styles.sortContainerOpen]}>
           <TouchableOpacity style={[styles.sortSelector, { borderColor: '#e0e0e0', backgroundColor: theme.cardColor }]} onPress={() => setIsSortOpen(!isSortOpen)}>
             <Text style={[styles.sortSelectorText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>
-              {sortBy === 'easiest' && 'Easiest first'}
-              {sortBy === 'hardest' && 'Hardest first'}
-              {sortBy === 'oldest' && 'Oldest first'}
-              {sortBy === 'newest' && 'Newest first'}
+              Sort by
             </Text>
             <Ionicons name={isSortOpen ? 'chevron-up' : 'chevron-down'} size={18} color={theme.secondaryText} />
           </TouchableOpacity>
@@ -193,7 +260,10 @@ const FlowStoryScreen = ({ navigation }: any) => {
       ) : (
         <ScrollView style={styles.listContainer} showsVerticalScrollIndicator={false}>
           {sortedStories.map(story => (
-            <TouchableOpacity key={story.id} style={[styles.storyCard, { backgroundColor: theme.cardColor }]} onPress={() => navigation.navigate('FlowDetailScreen', { storyId: story.id })}>
+            <TouchableOpacity key={story.id} style={[styles.storyCard, { backgroundColor: theme.cardColor }]} onPress={() => {
+              saveLastOpenedStory(story.id);
+              navigation.navigate('FlowDetailScreen', { storyId: story.id });
+            }}>
               <View style={styles.storyContent}>
                 <View style={styles.storyImageContainer}>
                   {(story.imageUrl || (story.emoji && story.emoji.startsWith('http'))) ? (
@@ -208,6 +278,17 @@ const FlowStoryScreen = ({ navigation }: any) => {
                   <Text style={[styles.storyTitle, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]} numberOfLines={1}>{story.title}</Text>
                   <Text style={[styles.storyDescription, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]} numberOfLines={2}>{story.description}</Text>
                 </View>
+                {isStoryCompleted(story) && (
+                  <View style={styles.completionBadge}>
+                    <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                  </View>
+                )}
+                {lastOpenedStoryId === story.id && (
+                  <View style={styles.recentBadge}>
+                    <Ionicons name="time" size={16} color="#2196F3" />
+                  </View>
+                )}
+
               </View>
             </TouchableOpacity>
           ))}
@@ -224,10 +305,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
   headerTitle: { fontWeight: 'bold' },
   adminButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  sortWrapper: { marginTop: 4, marginBottom: 16, paddingHorizontal: 12 },
+  sortWrapper: { marginTop: 4, marginBottom: 16, paddingHorizontal: 12, alignItems: 'flex-end' },
   sortContainer: { position: 'relative', zIndex: 10 },
   sortContainerOpen: { zIndex: 999 },
-  sortSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  sortSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignSelf: 'flex-start' },
   sortSelectorText: { },
   sortMenu: { position: 'absolute', top: 48, left: 0, right: 0, borderRadius: 12, borderWidth: 1, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 12, zIndex: 9999 },
   sortOption: { paddingHorizontal: 12, paddingVertical: 10 },
@@ -242,6 +323,9 @@ const styles = StyleSheet.create({
   storyInfo: { flex: 1, justifyContent: 'center' },
   storyTitle: { fontWeight: 'bold', marginBottom: 6 },
   storyDescription: { },
+  completionBadge: { position: 'absolute', top: 12, right: 12, zIndex: 10 },
+  recentBadge: { position: 'absolute', top: 12, left: 12, zIndex: 10 },
+
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingText: { marginTop: 8 },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },

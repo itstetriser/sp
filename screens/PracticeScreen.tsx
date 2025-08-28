@@ -231,20 +231,52 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
               ) : (
                 <View style={{ width: '100%', paddingHorizontal: 20 }}>
                   <Text style={{ fontSize: 28, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 12 }}>{word.word}</Text>
-                  {word.type ? (
-                    <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20' }}>
-                      <Text style={{ color: theme.primary, fontWeight: '700' }}>{word.type}</Text>
+                  
+                  {word.type && (
+                    <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
+                      <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
                     </View>
-                  ) : null}
-                  {word.definition ? (
-                    <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.cardColor, marginTop: 16 }}>
-                      <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: 12 }}>DEFINITION</Text>
-                      <Text style={{ color: theme.primaryText, fontSize: 18, textAlign: 'center', marginTop: 8 }}>{word.definition}</Text>
-                      {word.equivalent ? (
-                        <Text style={{ color: theme.accentText, fontSize: 16, textAlign: 'center', marginTop: 8 }}>{word.equivalent}</Text>
-                      ) : null}
+                  )}
+                  
+                  {word.definition && (
+                    <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
+                      <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
+                      <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), textAlign: 'center', lineHeight: 22 }}>{word.definition}</Text>
+                      {word.equivalent && (
+                        <Text style={{ color: theme.accentText, fontSize: getScaledFontSize(14), textAlign: 'center', marginTop: 8, fontStyle: 'italic' }}>{word.equivalent}</Text>
+                      )}
                     </View>
-                  ) : null}
+                  )}
+                  
+                  {(word.example1 || word.example2) && (
+                    <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
+                      <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
+                      {word.example1 && (
+                        <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(14), textAlign: 'center', marginBottom: 6, lineHeight: 20 }}>• {word.example1}</Text>
+                      )}
+                      {word.example2 && (
+                        <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 20 }}>• {word.example2}</Text>
+                      )}
+                    </View>
+                  )}
+                  
+                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 12, backgroundColor: theme.surfaceColor }}>
+                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 6 }}>PROGRESS</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.reviewCount || 0}</Text>
+                        <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Reviews</Text>
+                      </View>
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={{ color: theme.success, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.totalCorrect || 0}</Text>
+                        <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Correct</Text>
+                      </View>
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={{ color: theme.error, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.totalIncorrect || 0}</Text>
+                        <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Incorrect</Text>
+                      </View>
+                    </View>
+                  </View>
                 </View>
               )}
             </TouchableOpacity>

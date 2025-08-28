@@ -13,20 +13,37 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tetriser.Storypick",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "runtimeVersion": "1.0.0"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.tetriser.Storypick",
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "740fce9b-13ac-45eb-86f5-93bba8a7273f"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/740fce9b-13ac-45eb-86f5-93bba8a7273f"
+    }
   }
 }

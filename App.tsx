@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Animated, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth, db } from './firebase';
 import { FontSizeProvider, useFontSize } from './FontSizeContext';
@@ -19,6 +19,7 @@ import FlowDetailScreen from './screens/FlowDetailScreen';
 import FlowQuestionsScreen from './screens/FlowQuestionsScreen';
 import FlowStoryScreen from './screens/FlowStoryScreen';
 import LearnedWordsScreen from './screens/LearnedWordsScreen';
+import MessagesScreen from './screens/MessagesScreen';
 import PracticeScreen from './screens/PracticeScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import SettingsScreen from './screens/SettingsScreen';
@@ -169,6 +170,14 @@ const EmojiStoryStackScreen = ({ setCurrentRoute }: { setCurrentRoute: (route: s
           headerBackTitle: "Admin Panel",
         }}
       />
+      <EmojiStoryStack.Screen 
+        name="Messages" 
+        component={MessagesScreen}
+        options={{
+          headerTitle: "Support Messages",
+          headerBackTitle: "Admin Panel",
+        }}
+      />
     </EmojiStoryStack.Navigator>
   );
 }
@@ -277,6 +286,14 @@ const FlowStackScreen = ({ setCurrentRoute }: { setCurrentRoute: (route: string)
           headerBackTitle: "Stories",
         }}
       />
+      <FlowStack.Screen 
+        name="Messages" 
+        component={MessagesScreen}
+        options={{
+          headerTitle: "Support Messages",
+          headerBackTitle: "Story Admin",
+        }}
+      />
     </FlowStack.Navigator>
   );
 };
@@ -336,8 +353,16 @@ function AppContent() {
       Settings: 'settings',
     };
     
-    // Keep tab bar always visible
+    // Show tab bar and add navigation warnings for specific screens; always visible across platforms
+    const currentTabRoute = state.routes[state.index];
+    const nestedState: any = (currentTabRoute as any).state;
+    const focusedNestedName = nestedState?.routes?.[nestedState.index]?.name;
+    const currentRouteName = currentTabRoute.name;
     const shouldHide = false;
+    const isInQuestionsScreen = (
+      (currentRouteName === 'Story' && focusedNestedName === 'FlowQuestionsScreen') ||
+      currentRoute === 'FlowQuestionsScreen'
+    );
 
     const rootScreensByTab: Record<string, string> = {
       Story: 'FlowStoryScreen',
@@ -376,13 +401,37 @@ function AppContent() {
                 <TouchableOpacity
                   style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}
                   onPress={() => {
-                    const rootScreen = rootScreensByTab[route.name];
-                    if (rootScreen) {
-                      navigation.navigate(route.name, { screen: rootScreen });
+                    // Show warning if trying to navigate away from questions screen
+                    if (isInQuestionsScreen) {
+                      Alert.alert(
+                        'Leave Chapter?',
+                        'Are you sure you want to leave this chapter? Your progress will be saved, but you\'ll need to restart the chapter.',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { 
+                            text: 'Leave', 
+                            style: 'destructive',
+                            onPress: () => {
+                              const rootScreen = rootScreensByTab[route.name];
+                              if (rootScreen) {
+                                navigation.navigate(route.name, { screen: rootScreen });
+                              } else {
+                                navigation.navigate(route.name);
+                              }
+                              setCurrentRoute(rootScreen || route.name);
+                            }
+                          }
+                        ]
+                      );
                     } else {
-                    navigation.navigate(route.name);
+                      const rootScreen = rootScreensByTab[route.name];
+                      if (rootScreen) {
+                        navigation.navigate(route.name, { screen: rootScreen });
+                      } else {
+                        navigation.navigate(route.name);
+                      }
+                      setCurrentRoute(rootScreen || route.name);
                     }
-                    setCurrentRoute(rootScreen || route.name);
                   }}
                   activeOpacity={0.7}
                 >

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -42,6 +43,13 @@ const FlowDetailScreen = ({ route, navigation }: any) => {
   };
 
   useEffect(() => { fetch(); }, [storyId]);
+
+  // Refresh progress data when screen comes back into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      fetch();
+    }, [storyId])
+  );
 
   // Header config now handled at stack level - navigation will use standard back button
 
