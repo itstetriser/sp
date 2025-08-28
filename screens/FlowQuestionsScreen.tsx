@@ -302,8 +302,29 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
     }
   };
 
+  // Web-compatible alert function
+const showAlert = (title: string, message: string, buttons: Array<{text: string, style?: 'cancel' | 'default' | 'destructive', onPress?: () => void}>) => {
+  if (Platform.OS === 'web') {
+    // For web, we'll use a custom modal
+    return new Promise<void>((resolve) => {
+      const result = window.confirm(`${title}\n\n${message}`);
+      if (result) {
+        // Find the "Leave" or "destructive" button
+        const leaveButton = buttons.find(btn => btn.style === 'destructive' || btn.text.toLowerCase().includes('leave'));
+        if (leaveButton?.onPress) {
+          leaveButton.onPress();
+        }
+      }
+      resolve();
+    });
+  } else {
+    // For native platforms, use the regular Alert
+    Alert.alert(title, message, buttons);
+  }
+};
+
   const handleBackConfirm = () => {
-    Alert.alert(
+    showAlert(
       'Leave chapter?',
       'If you go back now, your current progress in this chapter will be lost.',
       [

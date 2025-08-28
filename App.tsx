@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth, db } from './firebase';
 import { FontSizeProvider, useFontSize } from './FontSizeContext';
@@ -403,26 +403,39 @@ function AppContent() {
                   onPress={() => {
                     // Show warning if trying to navigate away from questions screen
                     if (isInQuestionsScreen) {
-                      Alert.alert(
-                        'Leave Chapter?',
-                        'Are you sure you want to leave this chapter? Your progress will be saved, but you\'ll need to restart the chapter.',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { 
-                            text: 'Leave', 
-                            style: 'destructive',
-                            onPress: () => {
-                              const rootScreen = rootScreensByTab[route.name];
-                              if (rootScreen) {
-                                navigation.navigate(route.name, { screen: rootScreen });
-                              } else {
-                                navigation.navigate(route.name);
-                              }
-                              setCurrentRoute(rootScreen || route.name);
-                            }
+                      if (Platform.OS === 'web') {
+                        const result = window.confirm('Leave Chapter?\n\nAre you sure you want to leave this chapter? Your progress will be saved, but you\'ll need to restart the chapter.');
+                        if (result) {
+                          const rootScreen = rootScreensByTab[route.name];
+                          if (rootScreen) {
+                            navigation.navigate(route.name, { screen: rootScreen });
+                          } else {
+                            navigation.navigate(route.name);
                           }
-                        ]
-                      );
+                          setCurrentRoute(rootScreen || route.name);
+                        }
+                      } else {
+                        Alert.alert(
+                          'Leave Chapter?',
+                          'Are you sure you want to leave this chapter? Your progress will be saved, but you\'ll need to restart the chapter.',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { 
+                              text: 'Leave', 
+                              style: 'destructive',
+                              onPress: () => {
+                                const rootScreen = rootScreensByTab[route.name];
+                                if (rootScreen) {
+                                  navigation.navigate(route.name, { screen: rootScreen });
+                                } else {
+                                  navigation.navigate(route.name);
+                                }
+                                setCurrentRoute(rootScreen || route.name);
+                              }
+                            }
+                          ]
+                        );
+                      }
                     } else {
                       const rootScreen = rootScreensByTab[route.name];
                       if (rootScreen) {
