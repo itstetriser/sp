@@ -159,7 +159,15 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 20 || Math.abs(g.dy) > 20,
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => {
+        // Only capture if it's a clear swipe gesture (not a tap)
+        return Math.abs(g.dx) > 30 || Math.abs(g.dy) > 30;
+      },
+      onPanResponderGrant: () => {
+        // Don't capture the touch - let TouchableOpacity handle it
+        return false;
+      },
       onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
       onPanResponderRelease: (_, g) => {
         if (g.dx > 100) {
@@ -208,7 +216,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
             </View>
           </View>
 
-          <Animated.View {...panResponder.panHandlers} style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]}> 
+          <Animated.View style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]} {...panResponder.panHandlers}> 
             {/* Overlays */}
             <>
               <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(244, 67, 54, 0.95)', opacity: pan.x.interpolate({ inputRange: [-SCREEN_WIDTH * 0.3, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
@@ -222,7 +230,20 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
               <Animated.Text style={[styles.overlayText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>LEARNED</Animated.Text>
             </Animated.View>
 
-            <TouchableOpacity style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFlipped(f => !f); }} activeOpacity={0.7}>
+            <TouchableOpacity 
+              style={{ 
+                flex: 1, 
+                width: '100%', 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                zIndex: 1000
+              }} 
+              onPress={() => { 
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); 
+                setFlipped(f => !f);
+              }} 
+              activeOpacity={0.5}
+            >
               {!flipped ? (
                 <View style={{ alignItems: 'center' }}>
                   <Text style={{ fontSize: 36, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 16 }}>{word.word}</Text>
@@ -238,7 +259,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                     </View>
                   )}
                   
-                  {word.definition && (
+                  {word.definition ? (
                     <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
                       <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
                       <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), textAlign: 'center', lineHeight: 22 }}>{word.definition}</Text>
@@ -246,9 +267,16 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                         <Text style={{ color: theme.accentText, fontSize: getScaledFontSize(14), textAlign: 'center', marginTop: 8, fontStyle: 'italic' }}>{word.equivalent}</Text>
                       )}
                     </View>
+                  ) : (
+                    <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
+                      <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
+                      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 22, fontStyle: 'italic' }}>
+                        No definition available. This word was added without vocabulary details.
+                      </Text>
+                    </View>
                   )}
                   
-                  {(word.example1 || word.example2) && (
+                  {(word.example1 || word.example2) ? (
                     <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
                       <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
                       {word.example1 && (
@@ -257,6 +285,13 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                       {word.example2 && (
                         <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 20 }}>• {word.example2}</Text>
                       )}
+                    </View>
+                  ) : (
+                    <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
+                      <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
+                      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 20, fontStyle: 'italic' }}>
+                        No examples available. This word was added without vocabulary details.
+                      </Text>
                     </View>
                   )}
                   
