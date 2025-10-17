@@ -368,7 +368,15 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 20 || Math.abs(gesture.dy) > 20,
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gesture) => {
+        // Only capture if it's a clear swipe gesture (not a tap)
+        return Math.abs(gesture.dx) > 30 || Math.abs(gesture.dy) > 30;
+      },
+      onPanResponderGrant: () => {
+        // Don't capture the touch - let TouchableOpacity handle it
+        return false;
+      },
       onPanResponderMove: Animated.event([
         null,
         { dx: pan.x, dy: pan.y },
@@ -482,7 +490,6 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
 
           {/* Main flashcard */}
           <Animated.View
-            {...panResponder.panHandlers}
             style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]}
           >
 
@@ -769,9 +776,7 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
                     shadowRadius: 4,
                     marginBottom: 30,
                   }}
-                  onPress={() => {
-                    (navigation as any).navigate('Practice', { words, startIndex: 0 });
-                  }}
+                  onPress={startReview}
                   activeOpacity={0.8}
                 >
                   <Text style={{ 
