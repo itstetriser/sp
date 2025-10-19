@@ -245,11 +245,19 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
               activeOpacity={0.5}
             >
               {!flipped ? (
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={{ fontSize: 36, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 16 }}>{word.word}</Text>
-                  <Text style={{ fontSize: 16, color: theme.secondaryText }}>Tap to see details</Text>
-                </View>
-              ) : (
+  <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
+    <Text style={{ fontSize: 36, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 16 }}>{word.word}</Text>
+    
+    {/* THIS IS THE NEW PART YOU ADDED */}
+    {word.type && (
+      <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
+        <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
+      </View>
+    )}
+    
+    <Text style={{ fontSize: 16, color: theme.secondaryText, marginTop: 8 }}>Tap to see details</Text>
+  </View>
+) : (
                 <View style={{ width: '100%', paddingHorizontal: 10 }}>
                   <Text style={{ fontSize: 28, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 12 }}>{word.word}</Text>
                   
