@@ -31,9 +31,9 @@ interface WordWithSpacedRepetition {
 
 const REVIEW_INTERVALS = [1, 3, 7, 14, 30, 90, 180];
 
-// Spacing constants for responsiveness
-const LABEL_GAP = 10; // distance between flashcard edge and label
-const SIDE_LABEL_WIDTH = 40; // width of the vertical label container
+// Spacing constants (No longer strictly needed for external labels)
+// const LABEL_GAP = 10;
+// const SIDE_LABEL_WIDTH = 40;
 
 const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const { theme, themeMode } = useTheme();
@@ -70,8 +70,8 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   }, [navigation, setCurrentRoute]);
 
   async function updateWordReview(word: WordWithSpacedRepetition, action: 'easy' | 'hard' | 'learned') {
+    // --- (Keep existing updateWordReview logic - unchanged) ---
     if (action === 'learned') {
-      // mark as learned in user doc
       const user = auth.currentUser;
       if (user) {
         const userRef = doc(db, 'users', user.uid);
@@ -125,9 +125,11 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
         console.error('Error updating word review:', e);
       }
     }
+    // --- (End of unchanged logic) ---
   }
 
   const handleSwipe = async (direction: 'left' | 'right' | 'bottom') => {
+    // --- (Keep existing handleSwipe logic - unchanged) ---
     const list = practiceWordsRef.current;
     const idx = currentIdxRef.current;
     const word = list[idx];
@@ -155,17 +157,17 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
     setCurrentIdx(nextIdx);
     setFlipped(false);
     pan.setValue({ x: 0, y: 0 });
+    // --- (End of unchanged logic) ---
   };
 
   const panResponder = useRef(
+    // --- (Keep existing panResponder logic - unchanged) ---
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, g) => {
-        // Only capture if it's a clear swipe gesture (not a tap)
         return Math.abs(g.dx) > 30 || Math.abs(g.dy) > 30;
       },
       onPanResponderGrant: () => {
-        // Don't capture the touch - let TouchableOpacity handle it
         return false;
       },
       onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
@@ -181,130 +183,117 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
         }
       },
     })
+    // --- (End of unchanged logic) ---
   ).current;
 
   if (practiceWords.length === 0 || !practiceWords[currentIdx]) {
+    // --- (Keep existing end condition - unchanged) ---
     return (
       <View style={[styles.center, { backgroundColor: theme.backgroundColor }]}>
         <Text style={{ fontSize: getScaledFontSize(18), color: theme.primaryText }}>You're done!</Text>
       </View>
     );
+    // --- (End of unchanged logic) ---
   }
 
   const word = practiceWords[currentIdx];
 
   return (
     <View style={[styles.page, { backgroundColor: theme.backgroundColor }]}>
+      {/* Container now handles sizing and positioning */}
       <View style={styles.flashcardContainer}>
-        {/* flashcardWithExtensions might not be needed if container handles layout */}
-        <View style={styles.flashcardWithExtensions}>
-          {/* HARD */}
-          <View style={styles.leftExtension}>
-            <View style={{ transform: [{ rotate: '-90deg' }], backgroundColor: themeMode === 'dark' ? '#FFFFFF' : '#000000', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: theme.borderColor }}>
-              <Text style={[styles.extensionText, { color: '#FF0000', fontSize: getScaledFontSize(16) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} ellipsizeMode="clip">HARD ↑</Text>
-            </View>
-          </View>
-          {/* EASY */}
-          <View style={styles.rightExtension}>
-            <View style={{ transform: [{ rotate: '90deg' }], backgroundColor: themeMode === 'dark' ? '#FFFFFF' : '#000000', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: theme.borderColor }}>
-              <Text style={[styles.extensionText, { color: '#FFA500', fontSize: getScaledFontSize(16) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} ellipsizeMode="clip">↑ EASY</Text>
-            </View>
-          </View>
-          {/* LEARNED */}
-          <View style={styles.bottomExtension}>
-            <View style={{ backgroundColor: themeMode === 'dark' ? '#FFFFFF' : '#000000', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: theme.borderColor }}>
-              <Text style={[styles.extensionText, { color: '#008000', fontSize: getScaledFontSize(16) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} ellipsizeMode="clip">LEARNED ↓</Text>
-            </View>
-          </View>
+        {/* Removed external label Views */}
 
-          <Animated.View style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]} {...panResponder.panHandlers}>
-            {/* Overlays */}
-            <>
-              <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(244, 67, 54, 0.95)', opacity: pan.x.interpolate({ inputRange: [-SCREEN_WIDTH * 0.3, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
-                <Text style={styles.overlayText}>HARD</Text>
-              </Animated.View>
-              <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(255, 165, 0, 0.95)', opacity: pan.x.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.3], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
-                <Text style={styles.overlayText}>EASY</Text>
-              </Animated.View>
-            </>
-            <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(76, 175, 80, 0.95)', opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
-              <Animated.Text style={[styles.overlayText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>LEARNED</Animated.Text>
+        <Animated.View style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]} {...panResponder.panHandlers}>
+          {/* Overlays (Unchanged) */}
+          <>
+            <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(244, 67, 54, 0.95)', opacity: pan.x.interpolate({ inputRange: [-SCREEN_WIDTH * 0.3, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
+              <Text style={styles.overlayText}>HARD</Text>
             </Animated.View>
-
-            <TouchableOpacity
-              style={{
-                flex: 1,
-                width: '100%',
-                justifyContent: 'center',
-                alignItems: 'center',
-                zIndex: 1000
-              }}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setFlipped(f => !f);
-              }}
-              activeOpacity={0.5}
-            >
-              {!flipped ? (
-                // --- FRONT OF CARD ---
-                <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
-                  <Text style={{ fontSize: 36, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 16 }}>{word.word}</Text>
-                  {word.type && (
-                    <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
-                      <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
-                    </View>
-                  )}
-                  <Text style={{ fontSize: 16, color: theme.secondaryText, marginTop: 8 }}>Tap to see details</Text>
-                </View>
-              ) : (
-                // --- BACK OF CARD ---
-                <View style={{ width: '100%', paddingHorizontal: 10 }}>
-                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 12 }}>{word.word}</Text>
-                  {word.type && (
-                    <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
-                      <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
-                    </View>
-                  )}
-                  {word.definition ? (
-                    <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
-                      <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
-                      <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), textAlign: 'center', lineHeight: 22 }}>{word.definition}</Text>
-                      {word.equivalent && (
-                        <Text style={{ color: theme.accentText, fontSize: getScaledFontSize(14), textAlign: 'center', marginTop: 8, fontStyle: 'italic' }}>{word.equivalent}</Text>
-                      )}
-                    </View>
-                  ) : (
-                    <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
-                      <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
-                      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 22, fontStyle: 'italic' }}>
-                        No definition available. This word was added without vocabulary details.
-                      </Text>
-                    </View>
-                  )}
-                  {(word.example1 || word.example2) ? (
-                    <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
-                      <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
-                      {word.example1 && (
-                        <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(14), textAlign: 'center', marginBottom: 6, lineHeight: 20 }}>• {word.example1}</Text>
-                      )}
-                      {word.example2 && (
-                        <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 20 }}>• {word.example2}</Text>
-                      )}
-                    </View>
-                  ) : (
-                    <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
-                      <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
-                      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 20, fontStyle: 'italic' }}>
-                        No examples available. This word was added without vocabulary details.
-                      </Text>
-                    </View>
-                  )}
-                  {/* Progress section was here - it has been deleted */}
-                </View>
-              )}
-            </TouchableOpacity>
+            <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(255, 165, 0, 0.95)', opacity: pan.x.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.3], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
+              <Text style={styles.overlayText}>EASY</Text>
+            </Animated.View>
+          </>
+          <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(76, 175, 80, 0.95)', opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
+            <Animated.Text style={[styles.overlayText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>LEARNED</Animated.Text>
           </Animated.View>
-        </View>
+
+          {/* TouchableOpacity for flipping (Unchanged internal structure, only padding adjusted) */}
+          <TouchableOpacity
+            style={{
+              flex: 1,
+              width: '100%',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 1000 // Ensure touch is captured over overlays
+            }}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setFlipped(f => !f);
+            }}
+            activeOpacity={0.5}
+          >
+            {!flipped ? (
+              // --- FRONT OF CARD (Unchanged logic, minor style adjustments possible) ---
+              <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
+                <Text style={{ fontSize: getScaledFontSize(36), fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 16 }}>{word.word}</Text>
+                {word.type && (
+                  <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
+                    <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
+                  </View>
+                )}
+                <Text style={{ fontSize: getScaledFontSize(16), color: theme.secondaryText, marginTop: 8 }}>Tap to see details</Text>
+              </View>
+            ) : (
+              // --- BACK OF CARD (Unchanged logic, reduced padding) ---
+              <View style={{ width: '100%', paddingHorizontal: 10 }}>
+                <Text style={{ fontSize: getScaledFontSize(28), fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 12 }}>{word.word}</Text>
+                {word.type && (
+                  <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
+                    <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
+                  </View>
+                )}
+                {/* Definition (Unchanged logic) */}
+                {word.definition ? (
+                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
+                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
+                    <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), textAlign: 'center', lineHeight: 22 }}>{word.definition}</Text>
+                    {word.equivalent && (
+                      <Text style={{ color: theme.accentText, fontSize: getScaledFontSize(14), textAlign: 'center', marginTop: 8, fontStyle: 'italic' }}>{word.equivalent}</Text>
+                    )}
+                  </View>
+                ) : (
+                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
+                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
+                    <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 22, fontStyle: 'italic' }}>
+                      No definition available. This word was added without vocabulary details.
+                    </Text>
+                  </View>
+                )}
+                {/* Examples (Unchanged logic) */}
+                {(word.example1 || word.example2) ? (
+                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
+                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
+                    {word.example1 && (
+                      <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(14), textAlign: 'center', marginBottom: 6, lineHeight: 20 }}>• {word.example1}</Text>
+                    )}
+                    {word.example2 && (
+                      <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 20 }}>• {word.example2}</Text>
+                    )}
+                  </View>
+                ) : (
+                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
+                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
+                    <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 20, fontStyle: 'italic' }}>
+                      No examples available. This word was added without vocabulary details.
+                    </Text>
+                  </View>
+                )}
+                {/* Progress section REMOVED */}
+              </View>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
       </View>
     </View>
   );
@@ -316,25 +305,18 @@ const styles = StyleSheet.create({
   // --- Updated Flashcard Styles ---
   flashcardContainer: {
     position: 'relative',
-    width: SCREEN_WIDTH * 0.8, // Make it wider (80% of screen width)
+    width: '85%',             // Use percentage width
     maxHeight: 600,           // Keep max height reasonable
-    height: '75%',            // Set height relative to screen (adjust % as needed)
+    height: '70%',            // Set height relative to screen
+    // aspectRatio: 3 / 4,    // Alternative: Use aspectRatio for consistent shape
     borderRadius: 20,
     alignSelf: 'center',
-    marginTop: '5%',          // Use percentage for margin too
-    justifyContent: 'center', // Center content vertically
-    alignItems: 'center',     // Center content horizontally
-  },
-  flashcardWithExtensions: { // This might not be strictly needed anymore if container handles layout
-    position: 'relative',
-    width: '100%',            // Take full width of container
-    height: '100%',           // Take full height of container
-    borderRadius: 20,
+    marginTop: '5%',          // Use percentage margin
     justifyContent: 'center',
     alignItems: 'center',
-    // Keep padding if needed for internal spacing, or move to flashcard style
-    // padding: 28
+    // Removed background color, card itself has it
   },
+  // flashcardWithExtensions removed as redundant
   flashcard: {
     width: '100%',            // Take full width of container
     height: '100%',           // Take full height of container
@@ -345,41 +327,14 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,             // Adjusted padding slightly
-    overflow: 'hidden',      // Hide content that might overflow on smaller heights
+    padding: 20,              // Adjusted padding
+    overflow: 'hidden',       // Prevent content spillover
+    // backgroundColor applied via inline style using theme.cardColor
   },
-  // --- Updated Label Styles ---
-  leftExtension: {
-    position: 'absolute',
-    left: -45, // Adjust this offset based on new card width
-    top: 0,
-    bottom: 0,
-    width: SIDE_LABEL_WIDTH, // Use constant
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 5,
-  },
-  rightExtension: {
-    position: 'absolute',
-    right: -45, // Adjust this offset based on new card width
-    top: 0,
-    bottom: 0,
-    width: SIDE_LABEL_WIDTH, // Use constant
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 5,
-  },
-  bottomExtension: {
-    position: 'absolute',
-    bottom: -25, // Adjust vertical offset
-    left: 0,
-    right: 0, // Center horizontally
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 5,
-  },
-  extensionText: { fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+  // --- External Label Styles REMOVED ---
+  // leftExtension, rightExtension, bottomExtension removed
+  // extensionText removed
+  // --- Overlay Styles (Unchanged) ---
   cardOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, alignItems: 'center', justifyContent: 'center', zIndex: 30 },
   overlayText: { color: '#fff', fontSize: 32, fontWeight: 'bold', textAlign: 'center' },
 });
