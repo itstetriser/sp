@@ -31,9 +31,9 @@ interface WordWithSpacedRepetition {
 
 const REVIEW_INTERVALS = [1, 3, 7, 14, 30, 90, 180];
 
-// Spacing constants to keep side labels (HARD/EASY) gap equal to bottom (LEARNED) gap
+// Spacing constants for responsiveness
 const LABEL_GAP = 10; // distance between flashcard edge and label
-const SIDE_LABEL_WIDTH = 90; // width of the vertical label container
+const SIDE_LABEL_WIDTH = 40; // width of the vertical label container
 
 const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const { theme, themeMode } = useTheme();
@@ -185,7 +185,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
   if (practiceWords.length === 0 || !practiceWords[currentIdx]) {
     return (
-      <View style={[styles.center, { backgroundColor: theme.backgroundColor }]}> 
+      <View style={[styles.center, { backgroundColor: theme.backgroundColor }]}>
         <Text style={{ fontSize: getScaledFontSize(18), color: theme.primaryText }}>You're done!</Text>
       </View>
     );
@@ -194,8 +194,9 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const word = practiceWords[currentIdx];
 
   return (
-    <View style={[styles.page, { backgroundColor: theme.backgroundColor }]}> 
+    <View style={[styles.page, { backgroundColor: theme.backgroundColor }]}>
       <View style={styles.flashcardContainer}>
+        {/* flashcardWithExtensions might not be needed if container handles layout */}
         <View style={styles.flashcardWithExtensions}>
           {/* HARD */}
           <View style={styles.leftExtension}>
@@ -216,7 +217,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
             </View>
           </View>
 
-          <Animated.View style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]} {...panResponder.panHandlers}> 
+          <Animated.View style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]} {...panResponder.panHandlers}>
             {/* Overlays */}
             <>
               <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(244, 67, 54, 0.95)', opacity: pan.x.interpolate({ inputRange: [-SCREEN_WIDTH * 0.3, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
@@ -230,43 +231,40 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
               <Animated.Text style={[styles.overlayText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>LEARNED</Animated.Text>
             </Animated.View>
 
-            <TouchableOpacity 
-              style={{ 
-                flex: 1, 
-                width: '100%', 
-                justifyContent: 'center', 
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                width: '100%',
+                justifyContent: 'center',
                 alignItems: 'center',
                 zIndex: 1000
-              }} 
-              onPress={() => { 
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); 
+              }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setFlipped(f => !f);
-              }} 
+              }}
               activeOpacity={0.5}
             >
               {!flipped ? (
-  <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
-    <Text style={{ fontSize: 36, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 16 }}>{word.word}</Text>
-    
-    {/* THIS IS THE NEW PART YOU ADDED */}
-    {word.type && (
-      <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
-        <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
-      </View>
-    )}
-    
-    <Text style={{ fontSize: 16, color: theme.secondaryText, marginTop: 8 }}>Tap to see details</Text>
-  </View>
-) : (
-                <View style={{ width: '100%', paddingHorizontal: 10 }}>
-                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 12 }}>{word.word}</Text>
-                  
+                // --- FRONT OF CARD ---
+                <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
+                  <Text style={{ fontSize: 36, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 16 }}>{word.word}</Text>
                   {word.type && (
                     <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
                       <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
                     </View>
                   )}
-                  
+                  <Text style={{ fontSize: 16, color: theme.secondaryText, marginTop: 8 }}>Tap to see details</Text>
+                </View>
+              ) : (
+                // --- BACK OF CARD ---
+                <View style={{ width: '100%', paddingHorizontal: 10 }}>
+                  <Text style={{ fontSize: 28, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 12 }}>{word.word}</Text>
+                  {word.type && (
+                    <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
+                      <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
+                    </View>
+                  )}
                   {word.definition ? (
                     <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
                       <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
@@ -283,7 +281,6 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                       </Text>
                     </View>
                   )}
-                  
                   {(word.example1 || word.example2) ? (
                     <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
                       <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
@@ -302,8 +299,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                       </Text>
                     </View>
                   )}
-                  
-                  
+                  {/* Progress section was here - it has been deleted */}
                 </View>
               )}
             </TouchableOpacity>
@@ -315,17 +311,77 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
 };
 
 const styles = StyleSheet.create({
-  page: { flex: 1 },
+  page: { flex: 1, justifyContent: 'center' }, // Added justifyContent
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  flashcardContainer: { position: 'relative', width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, alignSelf: 'center', marginTop: 20 },
-  flashcardWithExtensions: { position: 'relative', width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, justifyContent: 'center', alignItems: 'center', padding: 28 },
-  flashcard: { width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, elevation: 8, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, justifyContent: 'center', alignItems: 'center', padding: 28 },
-  leftExtension: { position: 'absolute', left: -(SIDE_LABEL_WIDTH + LABEL_GAP), top: 50, width: SIDE_LABEL_WIDTH, height: 500, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
-  rightExtension: { position: 'absolute', right: -(SIDE_LABEL_WIDTH + LABEL_GAP), top: 50, width: SIDE_LABEL_WIDTH, height: 500, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
-  bottomExtension: { position: 'absolute', bottom: -LABEL_GAP, left: 32, width: SCREEN_WIDTH * 0.55, height: 40, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
+  // --- Updated Flashcard Styles ---
+  flashcardContainer: {
+    position: 'relative',
+    width: SCREEN_WIDTH * 0.8, // Make it wider (80% of screen width)
+    maxHeight: 600,           // Keep max height reasonable
+    height: '75%',            // Set height relative to screen (adjust % as needed)
+    borderRadius: 20,
+    alignSelf: 'center',
+    marginTop: '5%',          // Use percentage for margin too
+    justifyContent: 'center', // Center content vertically
+    alignItems: 'center',     // Center content horizontally
+  },
+  flashcardWithExtensions: { // This might not be strictly needed anymore if container handles layout
+    position: 'relative',
+    width: '100%',            // Take full width of container
+    height: '100%',           // Take full height of container
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Keep padding if needed for internal spacing, or move to flashcard style
+    // padding: 28
+  },
+  flashcard: {
+    width: '100%',            // Take full width of container
+    height: '100%',           // Take full height of container
+    borderRadius: 20,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,             // Adjusted padding slightly
+    overflow: 'hidden',      // Hide content that might overflow on smaller heights
+  },
+  // --- Updated Label Styles ---
+  leftExtension: {
+    position: 'absolute',
+    left: -45, // Adjust this offset based on new card width
+    top: 0,
+    bottom: 0,
+    width: SIDE_LABEL_WIDTH, // Use constant
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  rightExtension: {
+    position: 'absolute',
+    right: -45, // Adjust this offset based on new card width
+    top: 0,
+    bottom: 0,
+    width: SIDE_LABEL_WIDTH, // Use constant
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  bottomExtension: {
+    position: 'absolute',
+    bottom: -25, // Adjust vertical offset
+    left: 0,
+    right: 0, // Center horizontally
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
   extensionText: { fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
   cardOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, alignItems: 'center', justifyContent: 'center', zIndex: 30 },
   overlayText: { color: '#fff', fontSize: 32, fontWeight: 'bold', textAlign: 'center' },
 });
 
-export default PracticeScreen; 
+export default PracticeScreen;
