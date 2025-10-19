@@ -69,7 +69,6 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   }, [navigation, setCurrentRoute]);
 
   async function updateWordReview(word: WordWithSpacedRepetition, action: 'easy' | 'hard' | 'learned') {
-    // --- (Keep existing updateWordReview logic - unchanged) ---
     if (action === 'learned') {
       const user = auth.currentUser;
       if (user) {
@@ -124,11 +123,9 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
         console.error('Error updating word review:', e);
       }
     }
-    // --- (End of unchanged logic) ---
   }
 
   const handleSwipe = async (direction: 'left' | 'right' | 'bottom') => {
-    // --- (Keep existing handleSwipe logic - unchanged) ---
     const list = practiceWordsRef.current;
     const idx = currentIdxRef.current;
     const word = list[idx];
@@ -156,11 +153,9 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
     setCurrentIdx(nextIdx);
     setFlipped(false);
     pan.setValue({ x: 0, y: 0 });
-    // --- (End of unchanged logic) ---
   };
 
   const panResponder = useRef(
-    // --- (Keep existing panResponder logic - unchanged) ---
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, g) => {
@@ -182,19 +177,14 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
         }
       },
     })
-    // --- (End of unchanged logic) ---
   ).current;
 
-  // Function getDaysForAction REMOVED
-
   if (practiceWords.length === 0 || !practiceWords[currentIdx]) {
-    // --- (Keep existing end condition - unchanged) ---
     return (
       <View style={[styles.center, { backgroundColor: theme.backgroundColor }]}>
         <Text style={{ fontSize: getScaledFontSize(18), color: theme.primaryText }}>You're done!</Text>
       </View>
     );
-    // --- (End of unchanged logic) ---
   }
 
   const word = practiceWords[currentIdx];
@@ -215,21 +205,12 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
       {/* Container now handles sizing and positioning */}
       <View style={styles.flashcardContainer}>
         <Animated.View style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]} {...panResponder.panHandlers}>
-          {/* Overlays --- Interval Text Removed */}
+          {/* Overlays --- TEXT REMOVED --- */}
           <>
-            <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(244, 67, 54, 0.95)', opacity: pan.x.interpolate({ inputRange: [-SCREEN_WIDTH * 0.3, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
-              <Text style={styles.overlayText}>HARD</Text>
-              {/* Interval text removed */}
-            </Animated.View>
-            <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(255, 165, 0, 0.95)', opacity: pan.x.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.3], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
-              <Text style={styles.overlayText}>EASY</Text>
-              {/* Interval text removed */}
-            </Animated.View>
+            <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(244, 67, 54, 0.95)', opacity: pan.x.interpolate({ inputRange: [-SCREEN_WIDTH * 0.3, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]} />
+            <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(255, 165, 0, 0.95)', opacity: pan.x.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.3], outputRange: [0, 1], extrapolate: 'clamp' }) }]} />
           </>
-          <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(76, 175, 80, 0.95)', opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
-            <Animated.Text style={[styles.overlayText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>LEARNED</Animated.Text>
-             {/* Confirmation text removed */}
-          </Animated.View>
+          <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(76, 175, 80, 0.95)', opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]} />
 
           {/* TouchableOpacity for flipping */}
           <TouchableOpacity
@@ -308,8 +289,8 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    justifyContent: 'center', // Center flashcard vertically
-    alignItems: 'center',    // Center flashcard horizontally
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   center: {
     flex: 1,
@@ -317,46 +298,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   flashcardContainer: {
-    position: 'relative', // Keep relative for overlays
-    width: '85%',             // Use percentage width
-    maxHeight: 600,           // Keep max height reasonable
-    height: '70%',            // Set height relative to screen
+    position: 'relative',
+    width: '85%',
+    maxHeight: 600,
+    height: '70%',
     borderRadius: 20,
     alignSelf: 'center',
     justifyContent: 'center',
     alignItems: 'center',
-    // marginTop removed, page style handles centering
   },
   flashcard: {
-    width: '100%',            // Take full width of container
-    height: '100%',           // Take full height of container
+    width: '100%',
+    height: '100%',
     borderRadius: 20,
     elevation: 8,
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 }, // Added offset for better shadow
+    shadowOffset: { width: 0, height: 4 },
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
     overflow: 'hidden',
-    // backgroundColor applied via inline style using theme.cardColor
   },
-  touchableArea: {            // Style for the TouchableOpacity
+  touchableArea: {
     flex: 1,
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000 // Ensure touch is captured over overlays
+    zIndex: 1000
   },
-  cardContent: {             // Container for front card content
+  cardContent: {
     alignItems: 'center',
     paddingHorizontal: 10
   },
-   cardContentBack: {         // Container for back card content
+   cardContentBack: {
     width: '100%',
     paddingHorizontal: 10,
-    alignItems: 'center', // Center items like type badge
+    alignItems: 'center',
   },
   wordTextFront: {
     fontWeight: 'bold',
@@ -386,7 +365,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    width: '100%', // Ensure sections take full width inside padding
+    width: '100%',
   },
   detailLabel: {
     fontWeight: '700',
@@ -404,7 +383,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic'
   },
   exampleText: {
-    textAlign: 'center', // Changed from left to center
+    textAlign: 'center',
     marginBottom: 6,
     lineHeight: 20
   },
@@ -413,34 +392,31 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontStyle: 'italic',
   },
-  // --- Updated Hint Styles ---
   bottomHintContainer: {
     position: 'absolute',
-    bottom: 60, // Adjust vertical position as needed, relative to the bottom of the screen
+    bottom: 60,
     left: HINT_OFFSET,
     right: HINT_OFFSET,
-    alignItems: 'center', // Center content horizontally
+    alignItems: 'center',
     zIndex: 1,
     pointerEvents: 'none',
   },
   topHintContainer: {
     position: 'absolute',
-    top: 60, // Adjust vertical position as needed, relative to the top of the screen
+    top: 60,
     left: HINT_OFFSET,
     right: HINT_OFFSET,
     flexDirection: 'row',
-    justifyContent: 'space-between', // Space out HARD and EASY
-    alignItems: 'flex-start', // Align to top
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     zIndex: 1,
     pointerEvents: 'none',
   },
   hintText: {
-    // fontSize set dynamically via getScaledFontSize
     fontWeight: 'bold',
     opacity: 0.6,
     padding: 5,
   },
-  // --- Overlay Styles ---
   cardOverlay: {
     position: 'absolute',
     top: 0,
@@ -452,13 +428,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 30
   },
-  overlayText: {
-    color: '#fff',
-    fontSize: 32, // Consider scaling this too if needed
-    fontWeight: 'bold',
-    textAlign: 'center'
-  },
-  // overlayIntervalText style REMOVED
+  // overlayText style REMOVED
 });
 
 export default PracticeScreen;
