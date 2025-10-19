@@ -295,23 +295,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                     </View>
                   )}
                   
-                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 12, backgroundColor: theme.surfaceColor }}>
-  <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 6 }}>PROGRESS</Text>
-  <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
-    <View style={{ alignItems: 'center' }}>
-      <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.reviewCount || 0}</Text>
-      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Reviews</Text>
-    </View>
-    <View style={{ alignItems: 'center' }}>
-      <Text style={{ color: theme.success, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.totalCorrect || 0}</Text>
-      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Correct</Text>
-    </View>
-    <View style={{ alignItems: 'center' }}>
-      <Text style={{ color: theme.error, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.totalIncorrect || 0}</Text>
-      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Incorrect</Text>
-    </View>
-  </View>
-</View>
+                  
                 </View>
               )}
             </TouchableOpacity>
