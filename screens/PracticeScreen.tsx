@@ -31,8 +31,8 @@ interface WordWithSpacedRepetition {
 
 const REVIEW_INTERVALS = [1, 3, 7, 14, 30, 90, 180];
 
-// Spacing constants for responsiveness (If needed for hints)
-const HINT_OFFSET = 10; // Space between hint and screen edge
+// Spacing constants for responsiveness
+const HINT_OFFSET = 15; // Space between hint and screen edge
 
 const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const { theme, themeMode } = useTheme();
@@ -215,19 +215,18 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   return (
     <View style={[styles.page, { backgroundColor: theme.backgroundColor }]}>
 
-      {/* --- ADDED: Subtle Persistent Hints --- */}
-      <View style={styles.hintContainer}>
-        <View style={styles.sideHint}>
-          <Text style={[styles.hintText, { color: theme.error }]}>← HARD</Text>
-        </View>
-        <View style={styles.bottomHint}>
-          <Text style={[styles.hintText, { color: theme.success }]}>↓ LEARNED</Text>
-        </View>
-        <View style={styles.sideHint}>
-          <Text style={[styles.hintText, { color: theme.warning, textAlign: 'right' }]}>EASY →</Text>
-        </View>
+      {/* --- ADDED: Top Hints (HARD, EASY) --- */}
+      <View style={styles.topHintContainer}>
+        <Text style={[styles.hintText, { color: theme.error, fontSize: getScaledFontSize(14) }]}>← HARD</Text>
+        <Text style={[styles.hintText, { color: theme.warning, textAlign: 'right', fontSize: getScaledFontSize(14) }]}>EASY →</Text>
       </View>
-      {/* --- End of Added Hints --- */}
+      {/* --- End of Top Hints --- */}
+
+      {/* --- ADDED: Bottom Hint (LEARNED) --- */}
+      <View style={styles.bottomHintContainer}>
+        <Text style={[styles.hintText, { color: theme.success, fontSize: getScaledFontSize(14) }]}>↓ LEARNED</Text>
+      </View>
+      {/* --- End of Bottom Hint --- */}
 
       {/* Container now handles sizing and positioning */}
       <View style={styles.flashcardContainer}>
@@ -236,19 +235,16 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
           <>
             <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(244, 67, 54, 0.95)', opacity: pan.x.interpolate({ inputRange: [-SCREEN_WIDTH * 0.3, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
               <Text style={styles.overlayText}>HARD</Text>
-              {/* Optional: Add interval feedback */}
-              <Text style={styles.overlayIntervalText}>Next: {getDaysForAction(word, 'hard')} days</Text>
+              <Text style={[styles.overlayIntervalText, { fontSize: getScaledFontSize(16) }]}>Next: {getDaysForAction(word, 'hard')} days</Text>
             </Animated.View>
             <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(255, 165, 0, 0.95)', opacity: pan.x.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.3], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
               <Text style={styles.overlayText}>EASY</Text>
-              {/* Optional: Add interval feedback */}
-              <Text style={styles.overlayIntervalText}>Next: {getDaysForAction(word, 'easy')} days</Text>
+              <Text style={[styles.overlayIntervalText, { fontSize: getScaledFontSize(16) }]}>Next: {getDaysForAction(word, 'easy')} days</Text>
             </Animated.View>
           </>
           <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(76, 175, 80, 0.95)', opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
             <Animated.Text style={[styles.overlayText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>LEARNED</Animated.Text>
-             {/* Optional: Add confirmation */}
-             <Animated.Text style={[styles.overlayIntervalText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>Move to Learned</Animated.Text>
+             <Animated.Text style={[styles.overlayIntervalText, { fontSize: getScaledFontSize(16), opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>Move to Learned</Animated.Text>
           </Animated.View>
 
           {/* TouchableOpacity for flipping */}
@@ -343,9 +339,9 @@ const styles = StyleSheet.create({
     height: '70%',            // Set height relative to screen
     borderRadius: 20,
     alignSelf: 'center',
-    // marginTop removed, page style handles centering
     justifyContent: 'center',
     alignItems: 'center',
+    // marginTop removed, page style handles centering
   },
   flashcard: {
     width: '100%',            // Take full width of container
@@ -424,7 +420,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic'
   },
   exampleText: {
-    textAlign: 'center',
+    textAlign: 'center', // Changed from left to center
     marginBottom: 6,
     lineHeight: 20
   },
@@ -433,35 +429,32 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontStyle: 'italic',
   },
-  // --- Hint Styles ---
-  hintContainer: {
+  // --- Updated Hint Styles ---
+  bottomHintContainer: {
     position: 'absolute',
-    top: 60,            // Position below header
+    bottom: 60, // Adjust vertical position as needed, relative to the bottom of the screen
     left: HINT_OFFSET,
     right: HINT_OFFSET,
-    bottom: 60,           // Position above bottom nav/safe area
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 1,            // Behind card
-    pointerEvents: 'none', // Allow touches to pass through
+    alignItems: 'center', // Center content horizontally
+    zIndex: 1,
+    pointerEvents: 'none',
   },
-  sideHint: {
-    width: '25%',         // Give some width
-    justifyContent: 'center',
-  },
-  bottomHint: {
+  topHintContainer: {
     position: 'absolute',
-    bottom: 0,            // Bottom of hintContainer
-    left: 0,
-    right: 0,
-    alignItems: 'center',
+    top: 60, // Adjust vertical position as needed, relative to the top of the screen
+    left: HINT_OFFSET,
+    right: HINT_OFFSET,
+    flexDirection: 'row',
+    justifyContent: 'space-between', // Space out HARD and EASY
+    alignItems: 'flex-start', // Align to top
+    zIndex: 1,
+    pointerEvents: 'none',
   },
   hintText: {
     // fontSize set dynamically via getScaledFontSize
     fontWeight: 'bold',
-    opacity: 0.6,         // Make them subtle
-    padding: 5,           // Add padding for touch safety if needed (though pointerEvents=none)
+    opacity: 0.6,
+    padding: 5,
   },
   // --- Overlay Styles (Added overlayIntervalText) ---
   cardOverlay: {
