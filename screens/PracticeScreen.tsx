@@ -250,7 +250,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                   <Text style={{ fontSize: 16, color: theme.secondaryText }}>Tap to see details</Text>
                 </View>
               ) : (
-                <View style={{ width: '100%', paddingHorizontal: 20 }}>
+                <View style={{ width: '100%', paddingHorizontal: 10 }}>
                   <Text style={{ fontSize: 28, fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 12 }}>{word.word}</Text>
                   
                   {word.type && (
@@ -296,22 +296,22 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                   )}
                   
                   <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 12, backgroundColor: theme.surfaceColor }}>
-                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 6 }}>PROGRESS</Text>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
-                      <View style={{ alignItems: 'center' }}>
-                        <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.reviewCount || 0}</Text>
-                        <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Reviews</Text>
-                      </View>
-                      <View style={{ alignItems: 'center' }}>
-                        <Text style={{ color: theme.success, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.totalCorrect || 0}</Text>
-                        <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Correct</Text>
-                      </View>
-                      <View style={{ alignItems: 'center' }}>
-                        <Text style={{ color: theme.error, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.totalIncorrect || 0}</Text>
-                        <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Incorrect</Text>
-                      </View>
-                    </View>
-                  </View>
+  <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 6 }}>PROGRESS</Text>
+  <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' }}>
+    <View style={{ alignItems: 'center' }}>
+      <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.reviewCount || 0}</Text>
+      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Reviews</Text>
+    </View>
+    <View style={{ alignItems: 'center' }}>
+      <Text style={{ color: theme.success, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.totalCorrect || 0}</Text>
+      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Correct</Text>
+    </View>
+    <View style={{ alignItems: 'center' }}>
+      <Text style={{ color: theme.error, fontSize: getScaledFontSize(16), fontWeight: 'bold' }}>{word.totalIncorrect || 0}</Text>
+      <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(10) }}>Incorrect</Text>
+    </View>
+  </View>
+</View>
                 </View>
               )}
             </TouchableOpacity>
@@ -325,7 +325,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
 const styles = StyleSheet.create({
   page: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  flashcardContainer: { position: 'relative', width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, alignSelf: 'center' },
+  flashcardContainer: { position: 'relative', width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, alignSelf: 'center', marginTop: 20 },
   flashcardWithExtensions: { position: 'relative', width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, justifyContent: 'center', alignItems: 'center', padding: 28 },
   flashcard: { width: SCREEN_WIDTH * 0.65, height: 600, borderRadius: 20, elevation: 8, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, justifyContent: 'center', alignItems: 'center', padding: 28 },
   leftExtension: { position: 'absolute', left: -(SIDE_LABEL_WIDTH + LABEL_GAP), top: 50, width: SIDE_LABEL_WIDTH, height: 500, justifyContent: 'center', alignItems: 'center', zIndex: 5 },
