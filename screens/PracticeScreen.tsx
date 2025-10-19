@@ -185,20 +185,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
     // --- (End of unchanged logic) ---
   ).current;
 
-  // Function to calculate next interval days (for enhanced overlays, optional)
-  const getDaysForAction = (word: WordWithSpacedRepetition, action: 'easy' | 'hard') => {
-    const currentIntervalIndex = word.intervalIndex || 0;
-    if (action === 'easy') {
-      if (currentIntervalIndex === 0) return 3;
-      if (currentIntervalIndex === 1) return 9;
-      if (currentIntervalIndex === 2) return 27;
-      if (currentIntervalIndex === 3) return 81;
-      return 180;
-    } else { // hard
-      return REVIEW_INTERVALS[currentIntervalIndex];
-    }
-  };
-
+  // Function getDaysForAction REMOVED
 
   if (practiceWords.length === 0 || !practiceWords[currentIdx]) {
     // --- (Keep existing end condition - unchanged) ---
@@ -215,36 +202,33 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   return (
     <View style={[styles.page, { backgroundColor: theme.backgroundColor }]}>
 
-      {/* --- ADDED: Top Hints (HARD, EASY) --- */}
+      {/* --- Hints --- */}
       <View style={styles.topHintContainer}>
         <Text style={[styles.hintText, { color: theme.error, fontSize: getScaledFontSize(14) }]}>← HARD</Text>
         <Text style={[styles.hintText, { color: theme.warning, textAlign: 'right', fontSize: getScaledFontSize(14) }]}>EASY →</Text>
       </View>
-      {/* --- End of Top Hints --- */}
-
-      {/* --- ADDED: Bottom Hint (LEARNED) --- */}
       <View style={styles.bottomHintContainer}>
         <Text style={[styles.hintText, { color: theme.success, fontSize: getScaledFontSize(14) }]}>↓ LEARNED</Text>
       </View>
-      {/* --- End of Bottom Hint --- */}
+      {/* --- End of Hints --- */}
 
       {/* Container now handles sizing and positioning */}
       <View style={styles.flashcardContainer}>
         <Animated.View style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]} {...panResponder.panHandlers}>
-          {/* Overlays */}
+          {/* Overlays --- Interval Text Removed */}
           <>
             <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(244, 67, 54, 0.95)', opacity: pan.x.interpolate({ inputRange: [-SCREEN_WIDTH * 0.3, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
               <Text style={styles.overlayText}>HARD</Text>
-              <Text style={[styles.overlayIntervalText, { fontSize: getScaledFontSize(16) }]}>Next: {getDaysForAction(word, 'hard')} days</Text>
+              {/* Interval text removed */}
             </Animated.View>
             <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(255, 165, 0, 0.95)', opacity: pan.x.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.3], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
               <Text style={styles.overlayText}>EASY</Text>
-              <Text style={[styles.overlayIntervalText, { fontSize: getScaledFontSize(16) }]}>Next: {getDaysForAction(word, 'easy')} days</Text>
+              {/* Interval text removed */}
             </Animated.View>
           </>
           <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(76, 175, 80, 0.95)', opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
             <Animated.Text style={[styles.overlayText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>LEARNED</Animated.Text>
-             <Animated.Text style={[styles.overlayIntervalText, { fontSize: getScaledFontSize(16), opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>Move to Learned</Animated.Text>
+             {/* Confirmation text removed */}
           </Animated.View>
 
           {/* TouchableOpacity for flipping */}
@@ -456,7 +440,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     padding: 5,
   },
-  // --- Overlay Styles (Added overlayIntervalText) ---
+  // --- Overlay Styles ---
   cardOverlay: {
     position: 'absolute',
     top: 0,
@@ -474,11 +458,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center'
   },
-  overlayIntervalText: {
-    color: '#fff',
-    // fontSize set dynamically via getScaledFontSize
-    marginTop: 8,
-  },
+  // overlayIntervalText style REMOVED
 });
 
 export default PracticeScreen;
