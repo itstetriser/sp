@@ -31,9 +31,8 @@ interface WordWithSpacedRepetition {
 
 const REVIEW_INTERVALS = [1, 3, 7, 14, 30, 90, 180];
 
-// Spacing constants (No longer strictly needed for external labels)
-// const LABEL_GAP = 10;
-// const SIDE_LABEL_WIDTH = 40;
+// Spacing constants for responsiveness (If needed for hints)
+const HINT_OFFSET = 10; // Space between hint and screen edge
 
 const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const { theme, themeMode } = useTheme();
@@ -186,6 +185,21 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
     // --- (End of unchanged logic) ---
   ).current;
 
+  // Function to calculate next interval days (for enhanced overlays, optional)
+  const getDaysForAction = (word: WordWithSpacedRepetition, action: 'easy' | 'hard') => {
+    const currentIntervalIndex = word.intervalIndex || 0;
+    if (action === 'easy') {
+      if (currentIntervalIndex === 0) return 3;
+      if (currentIntervalIndex === 1) return 9;
+      if (currentIntervalIndex === 2) return 27;
+      if (currentIntervalIndex === 3) return 81;
+      return 180;
+    } else { // hard
+      return REVIEW_INTERVALS[currentIntervalIndex];
+    }
+  };
+
+
   if (practiceWords.length === 0 || !practiceWords[currentIdx]) {
     // --- (Keep existing end condition - unchanged) ---
     return (
@@ -200,33 +214,46 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
   return (
     <View style={[styles.page, { backgroundColor: theme.backgroundColor }]}>
+
+      {/* --- ADDED: Subtle Persistent Hints --- */}
+      <View style={styles.hintContainer}>
+        <View style={styles.sideHint}>
+          <Text style={[styles.hintText, { color: theme.error }]}>← HARD</Text>
+        </View>
+        <View style={styles.bottomHint}>
+          <Text style={[styles.hintText, { color: theme.success }]}>↓ LEARNED</Text>
+        </View>
+        <View style={styles.sideHint}>
+          <Text style={[styles.hintText, { color: theme.warning, textAlign: 'right' }]}>EASY →</Text>
+        </View>
+      </View>
+      {/* --- End of Added Hints --- */}
+
       {/* Container now handles sizing and positioning */}
       <View style={styles.flashcardContainer}>
-        {/* Removed external label Views */}
-
         <Animated.View style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]} {...panResponder.panHandlers}>
-          {/* Overlays (Unchanged) */}
+          {/* Overlays */}
           <>
             <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(244, 67, 54, 0.95)', opacity: pan.x.interpolate({ inputRange: [-SCREEN_WIDTH * 0.3, 0], outputRange: [1, 0], extrapolate: 'clamp' }) }]}>
               <Text style={styles.overlayText}>HARD</Text>
+              {/* Optional: Add interval feedback */}
+              <Text style={styles.overlayIntervalText}>Next: {getDaysForAction(word, 'hard')} days</Text>
             </Animated.View>
             <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(255, 165, 0, 0.95)', opacity: pan.x.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.3], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
               <Text style={styles.overlayText}>EASY</Text>
+              {/* Optional: Add interval feedback */}
+              <Text style={styles.overlayIntervalText}>Next: {getDaysForAction(word, 'easy')} days</Text>
             </Animated.View>
           </>
           <Animated.View style={[styles.cardOverlay, { backgroundColor: 'rgba(76, 175, 80, 0.95)', opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
             <Animated.Text style={[styles.overlayText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>LEARNED</Animated.Text>
+             {/* Optional: Add confirmation */}
+             <Animated.Text style={[styles.overlayIntervalText, { opacity: pan.y.interpolate({ inputRange: [0, SCREEN_WIDTH * 0.2], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>Move to Learned</Animated.Text>
           </Animated.View>
 
-          {/* TouchableOpacity for flipping (Unchanged internal structure, only padding adjusted) */}
+          {/* TouchableOpacity for flipping */}
           <TouchableOpacity
-            style={{
-              flex: 1,
-              width: '100%',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 1000 // Ensure touch is captured over overlays
-            }}
+            style={styles.touchableArea} // Use style for clarity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setFlipped(f => !f);
@@ -234,62 +261,61 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
             activeOpacity={0.5}
           >
             {!flipped ? (
-              // --- FRONT OF CARD (Unchanged logic, minor style adjustments possible) ---
-              <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
-                <Text style={{ fontSize: getScaledFontSize(36), fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 16 }}>{word.word}</Text>
+              // --- FRONT OF CARD ---
+              <View style={styles.cardContent}>
+                <Text style={[styles.wordTextFront, { color: theme.primary, fontSize: getScaledFontSize(36) }]}>{word.word}</Text>
                 {word.type && (
-                  <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
-                    <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
+                  <View style={[styles.typeBadge, { backgroundColor: theme.primary + '20' }]}>
+                    <Text style={[styles.typeText, { color: theme.primary, fontSize: getScaledFontSize(14) }]}>{word.type}</Text>
                   </View>
                 )}
-                <Text style={{ fontSize: getScaledFontSize(16), color: theme.secondaryText, marginTop: 8 }}>Tap to see details</Text>
+                <Text style={[styles.tapHint, { color: theme.secondaryText, fontSize: getScaledFontSize(16) }]}>Tap to see details</Text>
               </View>
             ) : (
-              // --- BACK OF CARD (Unchanged logic, reduced padding) ---
-              <View style={{ width: '100%', paddingHorizontal: 10 }}>
-                <Text style={{ fontSize: getScaledFontSize(28), fontWeight: 'bold', color: theme.primary, textAlign: 'center', marginBottom: 12 }}>{word.word}</Text>
+              // --- BACK OF CARD ---
+              <View style={styles.cardContentBack}>
+                <Text style={[styles.wordTextBack, { color: theme.primary, fontSize: getScaledFontSize(28) }]}>{word.word}</Text>
                 {word.type && (
-                  <View style={{ alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: theme.primary + '20', marginBottom: 16 }}>
-                    <Text style={{ color: theme.primary, fontWeight: '700', fontSize: getScaledFontSize(14) }}>{word.type}</Text>
+                   <View style={[styles.typeBadge, { backgroundColor: theme.primary + '20', marginBottom: 16 }]}>
+                    <Text style={[styles.typeText, { color: theme.primary, fontSize: getScaledFontSize(14) }]}>{word.type}</Text>
                   </View>
                 )}
-                {/* Definition (Unchanged logic) */}
+                {/* Definition */}
                 {word.definition ? (
-                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
-                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
-                    <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), textAlign: 'center', lineHeight: 22 }}>{word.definition}</Text>
+                  <View style={[styles.detailSection, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}>
+                    <Text style={[styles.detailLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(12) }]}>DEFINITION</Text>
+                    <Text style={[styles.detailText, { color: theme.primaryText, fontSize: getScaledFontSize(16) }]}>{word.definition}</Text>
                     {word.equivalent && (
-                      <Text style={{ color: theme.accentText, fontSize: getScaledFontSize(14), textAlign: 'center', marginTop: 8, fontStyle: 'italic' }}>{word.equivalent}</Text>
+                      <Text style={[styles.equivalentText, { color: theme.accentText, fontSize: getScaledFontSize(14) }]}>{word.equivalent}</Text>
                     )}
                   </View>
                 ) : (
-                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
-                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>DEFINITION</Text>
-                    <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 22, fontStyle: 'italic' }}>
-                      No definition available. This word was added without vocabulary details.
+                   <View style={[styles.detailSection, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}>
+                    <Text style={[styles.detailLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(12) }]}>DEFINITION</Text>
+                    <Text style={[styles.detailPlaceholder, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>
+                      No definition available.
                     </Text>
                   </View>
                 )}
-                {/* Examples (Unchanged logic) */}
+                {/* Examples */}
                 {(word.example1 || word.example2) ? (
-                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
-                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
+                  <View style={[styles.detailSection, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}>
+                    <Text style={[styles.detailLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(12) }]}>EXAMPLES</Text>
                     {word.example1 && (
-                      <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(14), textAlign: 'center', marginBottom: 6, lineHeight: 20 }}>• {word.example1}</Text>
+                      <Text style={[styles.exampleText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>• {word.example1}</Text>
                     )}
                     {word.example2 && (
-                      <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 20 }}>• {word.example2}</Text>
+                      <Text style={[styles.exampleText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>• {word.example2}</Text>
                     )}
                   </View>
                 ) : (
-                  <View style={{ borderWidth: 1, borderColor: theme.borderColor, borderRadius: 16, padding: 16, backgroundColor: theme.surfaceColor, marginBottom: 12 }}>
-                    <Text style={{ color: theme.secondaryText, fontWeight: '700', textAlign: 'center', letterSpacing: 1, fontSize: getScaledFontSize(12), marginBottom: 8 }}>EXAMPLES</Text>
-                    <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(14), textAlign: 'center', lineHeight: 20, fontStyle: 'italic' }}>
-                      No examples available. This word was added without vocabulary details.
+                  <View style={[styles.detailSection, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}>
+                    <Text style={[styles.detailLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(12) }]}>EXAMPLES</Text>
+                    <Text style={[styles.detailPlaceholder, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>
+                      No examples available.
                     </Text>
                   </View>
                 )}
-                {/* Progress section REMOVED */}
               </View>
             )}
           </TouchableOpacity>
@@ -300,23 +326,27 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
 };
 
 const styles = StyleSheet.create({
-  page: { flex: 1, justifyContent: 'center' }, // Added justifyContent
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  // --- Updated Flashcard Styles ---
+  page: {
+    flex: 1,
+    justifyContent: 'center', // Center flashcard vertically
+    alignItems: 'center',    // Center flashcard horizontally
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   flashcardContainer: {
-    position: 'relative',
+    position: 'relative', // Keep relative for overlays
     width: '85%',             // Use percentage width
     maxHeight: 600,           // Keep max height reasonable
     height: '70%',            // Set height relative to screen
-    // aspectRatio: 3 / 4,    // Alternative: Use aspectRatio for consistent shape
     borderRadius: 20,
     alignSelf: 'center',
-    marginTop: '5%',          // Use percentage margin
+    // marginTop removed, page style handles centering
     justifyContent: 'center',
     alignItems: 'center',
-    // Removed background color, card itself has it
   },
-  // flashcardWithExtensions removed as redundant
   flashcard: {
     width: '100%',            // Take full width of container
     height: '100%',           // Take full height of container
@@ -325,18 +355,137 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, // Added offset for better shadow
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,              // Adjusted padding
-    overflow: 'hidden',       // Prevent content spillover
+    padding: 20,
+    overflow: 'hidden',
     // backgroundColor applied via inline style using theme.cardColor
   },
-  // --- External Label Styles REMOVED ---
-  // leftExtension, rightExtension, bottomExtension removed
-  // extensionText removed
-  // --- Overlay Styles (Unchanged) ---
-  cardOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 20, alignItems: 'center', justifyContent: 'center', zIndex: 30 },
-  overlayText: { color: '#fff', fontSize: 32, fontWeight: 'bold', textAlign: 'center' },
+  touchableArea: {            // Style for the TouchableOpacity
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000 // Ensure touch is captured over overlays
+  },
+  cardContent: {             // Container for front card content
+    alignItems: 'center',
+    paddingHorizontal: 10
+  },
+   cardContentBack: {         // Container for back card content
+    width: '100%',
+    paddingHorizontal: 10,
+    alignItems: 'center', // Center items like type badge
+  },
+  wordTextFront: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 16
+  },
+  typeBadge: {
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 16
+  },
+  typeText: {
+    fontWeight: '700',
+  },
+  tapHint: {
+    marginTop: 8
+  },
+  wordTextBack: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12
+  },
+  detailSection: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    width: '100%', // Ensure sections take full width inside padding
+  },
+  detailLabel: {
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 1,
+    marginBottom: 8
+  },
+  detailText: {
+    textAlign: 'center',
+    lineHeight: 22
+  },
+  equivalentText: {
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic'
+  },
+  exampleText: {
+    textAlign: 'center',
+    marginBottom: 6,
+    lineHeight: 20
+  },
+   detailPlaceholder: {
+    textAlign: 'center',
+    lineHeight: 22,
+    fontStyle: 'italic',
+  },
+  // --- Hint Styles ---
+  hintContainer: {
+    position: 'absolute',
+    top: 60,            // Position below header
+    left: HINT_OFFSET,
+    right: HINT_OFFSET,
+    bottom: 60,           // Position above bottom nav/safe area
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 1,            // Behind card
+    pointerEvents: 'none', // Allow touches to pass through
+  },
+  sideHint: {
+    width: '25%',         // Give some width
+    justifyContent: 'center',
+  },
+  bottomHint: {
+    position: 'absolute',
+    bottom: 0,            // Bottom of hintContainer
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  hintText: {
+    // fontSize set dynamically via getScaledFontSize
+    fontWeight: 'bold',
+    opacity: 0.6,         // Make them subtle
+    padding: 5,           // Add padding for touch safety if needed (though pointerEvents=none)
+  },
+  // --- Overlay Styles (Added overlayIntervalText) ---
+  cardOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 30
+  },
+  overlayText: {
+    color: '#fff',
+    fontSize: 32, // Consider scaling this too if needed
+    fontWeight: 'bold',
+    textAlign: 'center'
+  },
+  overlayIntervalText: {
+    color: '#fff',
+    // fontSize set dynamically via getScaledFontSize
+    marginTop: 8,
+  },
 });
 
 export default PracticeScreen;
