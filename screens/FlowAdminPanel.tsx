@@ -815,29 +815,54 @@ const FlowAdminPanel = () => {
     }
   };
 
+  // *** MODIFIED FUNCTION ***
   const handleDeleteVocab = async (index: number) => {
     if (!selectedStory || !selectedChapter) return;
-    
-    try {
-      const updatedChapters = selectedStory.chapters.map(ch => 
-        ch.id === selectedChapter.id 
-          ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
-          : ch
-      );
-      
-      await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
-      
-      // Update local state
-      setSelectedStory({ ...selectedStory, chapters: updatedChapters });
-      const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
-      setSelectedChapter(updatedChapter || null);
-      
-      Alert.alert('Success', 'Vocabulary word deleted');
-    } catch (error) {
-      console.error('Error deleting vocabulary:', error);
-      Alert.alert('Error', 'Failed to delete vocabulary');
-    }
+
+    // Get the word to make the confirmation message more specific
+    const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
+
+    // 1. Show the confirmation alert first
+    Alert.alert(
+      'Confirm Deletion', // Title
+      `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`, // Message
+      [
+        // 2. The "Cancel" button
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        // 3. The "Delete" button, which runs the original code on press
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // This is your original try/catch block, now moved inside the onPress
+            try {
+              const updatedChapters = selectedStory.chapters.map(ch =>
+                ch.id === selectedChapter.id
+                  ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
+                  : ch
+              );
+
+              await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+
+              // Update local state
+              setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+              const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+              setSelectedChapter(updatedChapter || null);
+
+              Alert.alert('Success', 'Vocabulary word deleted');
+            } catch (error) {
+              console.error('Error deleting vocabulary:', error);
+              Alert.alert('Error', 'Failed to delete vocabulary');
+            }
+          },
+        },
+      ]
+    );
   };
+  // *** END OF MODIFIED FUNCTION ***
 
   const handleStartEditVocab = (index: number, vocabItem: any) => {
     setEditingVocabIndex(index);
@@ -918,7 +943,7 @@ const FlowAdminPanel = () => {
         pushIf('C', q.incorrectAnswer2, false);
         pushIf('D', q.incorrectAnswer3, false);
         lines.push(`${qi + 1}. ${q.npcSentence}`);
-        opts.forEach(o => lines.push(`   ${o.label}) ${o.text} ${o.correct ? '[✓]' : ''}`));
+        opts.forEach(o => lines.push(`    ${o.label}) ${o.text} ${o.correct ? '[✓]' : ''}`));
         lines.push('');
       });
       lines.push('');
@@ -992,13 +1017,13 @@ const FlowAdminPanel = () => {
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                 <Text style={{ color: theme.primaryText, fontWeight: '600' }}>Active</Text>
                 <Switch value={storyActiveEdit} onValueChange={(v)=>{ setStoryActiveEdit(v); }} trackColor={{ false: theme.borderColor, true: theme.primary }} />
-          </View>
+              </View>
               <View style={styles.buttonRow}>
                 <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={saveStoryDetails}><Text style={styles.buttonText}>Save Story</Text></TouchableOpacity>
                 <TouchableOpacity style={[styles.button, { backgroundColor: storyActiveEdit ? theme.warning : theme.success }]} onPress={() => selectedStory && handleToggleStoryActive(selectedStory)}>
                   <Text style={styles.buttonText}>{selectedStory?.active ? 'Deactivate' : 'Activate'}</Text>
-            </TouchableOpacity>
-            </View>
+                </TouchableOpacity>
+              </View>
 
               <View style={styles.divider} />
 
@@ -1046,21 +1071,21 @@ const FlowAdminPanel = () => {
               <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Upload Dialogues</Text>
               <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkUpload(!showBulkUpload)}>
                 <Text style={styles.buttonText}>{showBulkUpload ? 'Hide' : 'Show'} Bulk Upload</Text>
-          </TouchableOpacity>
+              </TouchableOpacity>
           {showBulkUpload && (
             <View style={{ marginTop: 12 }}>
               <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Format: ---npc sentence---correct answer---incorrect answer---incorrect answer2---incorrect answer3--- /</Text>
                   <TextInput style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 160 }]} value={bulkDialogues} onChangeText={setBulkDialogues} placeholder="Paste dialogues..." placeholderTextColor={theme.secondaryText} multiline numberOfLines={8} />
                   <TouchableOpacity style={[styles.button, { backgroundColor: selectedChapter ? theme.success : theme.secondaryText }]} disabled={!selectedChapter} onPress={handleBulkUploadDialogues}><Text style={styles.buttonText}>Upload Dialogues</Text></TouchableOpacity>
-        </View>
-      )}
+            </View>
+        )}
 
               <View style={styles.divider} />
 
               <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Add Vocabulary</Text>
               <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkVocab(!showBulkVocab)}>
                 <Text style={styles.buttonText}>{showBulkVocab ? 'Hide' : 'Show'} Bulk Vocabulary</Text>
-          </TouchableOpacity>
+              </TouchableOpacity>
           {showBulkVocab && (
             <View style={{ marginTop: 12 }}>
                   <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Format: word---type---definition---example1---example2---equivalent /</Text>
@@ -1077,7 +1102,7 @@ const FlowAdminPanel = () => {
               <View style={styles.row}>
                 <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={level} onChangeText={setLevel} placeholder="Easy | Medium | Hard" placeholderTextColor={theme.secondaryText} />
                 <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={emoji} onChangeText={setEmoji} placeholder="📘" placeholderTextColor={theme.secondaryText} />
-            </View>
+              </View>
               <TextInput style={[styles.input, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={imageUrl} onChangeText={setImageUrl} placeholder="https://..." placeholderTextColor={theme.secondaryText} />
               <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={handleCreateStory}><Text style={styles.buttonText}>Create Story</Text></TouchableOpacity>
             </>
@@ -1093,31 +1118,31 @@ const FlowAdminPanel = () => {
                 <View style={styles.storyHeader}>
                   {(s.imageUrl || (s.emoji && s.emoji.startsWith('http'))) ? (
                     <Image source={{ uri: s.imageUrl || s.emoji }} style={styles.storyImage} />
-                                      ) : (
-                      <Text style={[styles.storyEmoji]}>{s.emoji}</Text>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.storyTitle, { color: selectedStory?.id === s.id ? '#fff' : theme.primaryText }]}>{s.title}</Text>
-                      <Text style={[styles.storyLevel, { color: selectedStory?.id === s.id ? '#fff' : theme.secondaryText }]}>{s.level}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.primary }]} onPress={(e) => { e.stopPropagation(); setSelectedStory(s); }}><Text style={styles.smallBtnText}>Edit</Text></TouchableOpacity>
-                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: s.active ? theme.success : theme.warning }]} onPress={(e) => { e.stopPropagation(); handleToggleStoryActive(s); }}>
-                        <Text style={styles.smallBtnText}>{s.active ? 'Active' : 'Inactive'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.smallBtn, { backgroundColor: theme.error, minWidth: 60 }]} 
-                        onPress={(e) => { 
-                          e.stopPropagation(); 
-                          console.log('Delete story button clicked for:', s.title);
-                          handleDeleteStory(s); 
-                        }}
-                      >
-                        <Text style={styles.smallBtnText}>Delete</Text>
-                      </TouchableOpacity>
-                    </View>
+                              ) : (
+                    <Text style={[styles.storyEmoji]}>{s.emoji}</Text>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.storyTitle, { color: selectedStory?.id === s.id ? '#fff' : theme.primaryText }]}>{s.title}</Text>
+                    <Text style={[styles.storyLevel, { color: selectedStory?.id === s.id ? '#fff' : theme.secondaryText }]}>{s.level}</Text>
                   </View>
-                </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.primary }]} onPress={(e) => { e.stopPropagation(); setSelectedStory(s); }}><Text style={styles.smallBtnText}>Edit</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: s.active ? theme.success : theme.warning }]} onPress={(e) => { e.stopPropagation(); handleToggleStoryActive(s); }}>
+                      <Text style={styles.smallBtnText}>{s.active ? 'Active' : 'Inactive'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.smallBtn, { backgroundColor: theme.error, minWidth: 60 }]} 
+                      onPress={(e) => { 
+                        e.stopPropagation(); 
+                        console.log('Delete story button clicked for:', s.title);
+                        handleDeleteStory(s); 
+                      }}
+                    >
+                      <Text style={styles.smallBtnText}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
 
@@ -1718,4 +1743,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default FlowAdminPanel; 
+export default FlowAdminPanel;
