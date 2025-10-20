@@ -1,7 +1,8 @@
 import { useNavigation } from '@react-navigation/native';
 import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+// *** ADD Platform HERE ***
+import { Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Platform } from 'react-native';
 import { db } from '../firebase';
 import { useFontSize } from '../FontSizeContext';
 import { useTheme } from '../ThemeContext';
@@ -727,28 +728,74 @@ const FlowAdminPanel = () => {
     }
   };
 
-  const handleDeleteStory = async (story: FlowStory) => {
-    console.log('Delete story button pressed for:', story.title);
+  // *** MODIFIED FUNCTION ***
+  const handleDeleteStory = (story: FlowStory) => {
     if (!story) return;
-    
-    try {
+
+    const storyTitle = story.title || 'this story';
+
+    // Helper function to perform the actual deletion
+    const deleteStoryItem = async () => {
       console.log('Deleting story:', story.id);
-      await deleteDoc(doc(db, 'flowStories', story.id));
-      console.log('Story deleted from Firestore');
-      
-      // Update local state
-      setStories(prev => prev.filter(s => s.id !== story.id));
-      if (selectedStory?.id === story.id) {
-        setSelectedStory(null);
-        setSelectedChapter(null);
+      try {
+        await deleteDoc(doc(db, 'flowStories', story.id));
+        console.log('Story deleted from Firestore');
+
+        // Update local state
+        setStories(prev => prev.filter(s => s.id !== story.id));
+        if (selectedStory?.id === story.id) {
+          setSelectedStory(null);
+          setSelectedChapter(null);
+        }
+
+        // Use appropriate alert for success
+        if (Platform.OS === 'web') {
+          window.alert('Story deleted successfully');
+        } else {
+          Alert.alert('Success', 'Story deleted successfully');
+        }
+
+      } catch (error) {
+        console.error('Error deleting story:', error);
+        // Use appropriate alert for error
+        if (Platform.OS === 'web') {
+          window.alert('Failed to delete story');
+        } else {
+          Alert.alert('Error', 'Failed to delete story');
+        }
       }
-      
-      Alert.alert('Success', 'Story deleted successfully');
-    } catch (error) {
-      console.error('Error deleting story:', error);
-      Alert.alert('Error', 'Failed to delete story');
+    };
+
+    // --- Confirmation Logic ---
+
+    // ✅ Web confirmation
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        `Are you sure you want to delete the story "${storyTitle}"? This will delete all its chapters and cannot be undone.`
+      );
+      if (confirmed) {
+        deleteStoryItem(); // Call the helper function if confirmed
+      } else {
+        console.log('Story deletion cancelled');
+      }
+      return;
     }
+
+    // ✅ Native confirmation
+    Alert.alert(
+      'Confirm Deletion',
+      `Are you sure you want to delete the story "${storyTitle}"? This will delete all its chapters and cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => console.log('Story deletion cancelled') },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: deleteStoryItem, // Call the helper function on press
+        },
+      ]
+    );
   };
+  // *** END OF MODIFIED FUNCTION ***
 
   const handleDeleteChapter = async () => {
     console.log('Delete chapter button pressed');
@@ -815,62 +862,75 @@ const FlowAdminPanel = () => {
     }
   };
 
-  // *** MODIFIED FUNCTION ***
+  // *** VERSION WITH PLATFORM CHECK ***
   const handleDeleteVocab = (index: number) => {
-  if (!selectedStory || !selectedChapter) return;
+    if (!selectedStory || !selectedChapter) return;
 
-  const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
+    const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
 
-  // ✅ Web confirmation
-  if (Platform.OS === 'web') {
-    const confirmed = window.confirm(`Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`);
-    if (!confirmed) return; // user cancelled
+    // Helper function to actually perform deletion
+    const deleteVocabItem = async () => {
+      if (!selectedStory || !selectedChapter) return; // Re-check inside async func
 
-    // only delete after confirmation
-    deleteVocabItem(index);
-    return;
-  }
+      try {
+        const updatedChapters = selectedStory.chapters.map(ch =>
+          ch.id === selectedChapter.id
+            ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
+            : ch
+        );
 
-  // ✅ Native confirmation
-  Alert.alert(
-    'Confirm Deletion',
-    `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`,
-    [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => deleteVocabItem(index),
-      },
-    ]
-  );
-};
+        await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
 
-// Helper function to actually perform deletion
-const deleteVocabItem = async (index: number) => {
-  if (!selectedStory || !selectedChapter) return;
-  const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
+        setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+        const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+        setSelectedChapter(updatedChapter || null);
 
-  try {
-    const updatedChapters = selectedStory.chapters.map(ch =>
-      ch.id === selectedChapter.id
-        ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
-        : ch
+        // Use appropriate alert for success
+        if (Platform.OS === 'web') {
+          window.alert(`"${wordToDelete}" has been removed.`);
+        } else {
+          Alert.alert('Deleted', `"${wordToDelete}" has been removed.`);
+        }
+
+      } catch (error) {
+        console.error('Error deleting vocabulary:', error);
+        // Use appropriate alert for error
+         if (Platform.OS === 'web') {
+          window.alert('Failed to delete vocabulary');
+        } else {
+          Alert.alert('Error', 'Failed to delete vocabulary');
+        }
+      }
+    };
+
+    // --- Confirmation Logic ---
+
+    // ✅ Web confirmation
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`);
+      if (confirmed) {
+        deleteVocabItem(); // Call helper if confirmed
+      } else {
+         console.log('Vocab delete cancelled');
+      }
+      return;
+    }
+
+    // ✅ Native confirmation
+    Alert.alert(
+      'Confirm Deletion',
+      `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => console.log('Vocab delete cancelled') },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: deleteVocabItem, // Call helper on press
+        },
+      ]
     );
-
-    await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
-
-    setSelectedStory({ ...selectedStory, chapters: updatedChapters });
-    const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
-    setSelectedChapter(updatedChapter || null);
-
-    Alert.alert('Deleted', `"${wordToDelete}" has been removed.`);
-  } catch (error) {
-    console.error('Error deleting vocabulary:', error);
-    Alert.alert('Error', 'Failed to delete vocabulary');
-  }
-};
-  // *** END OF MODIFIED FUNCTION ***
+  };
+  // *** END OF VERSION WITH PLATFORM CHECK ***
 
   const handleStartEditVocab = (index: number, vocabItem: any) => {
     setEditingVocabIndex(index);
@@ -1143,6 +1203,7 @@ const deleteVocabItem = async (index: number) => {
                       onPress={(e) => { 
                         e.stopPropagation(); 
                         console.log('Delete story button clicked for:', s.title);
+                        // *** CALL THE UPDATED FUNCTION ***
                         handleDeleteStory(s); 
                       }}
                     >
