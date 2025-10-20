@@ -816,52 +816,41 @@ const FlowAdminPanel = () => {
   };
 
   // *** MODIFIED FUNCTION ***
-  const handleDeleteVocab = async (index: number) => {
+  const handleDeleteVocab = (index: number) => {
   if (!selectedStory || !selectedChapter) return;
 
   const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
 
-  // ✅ Ask for confirmation immediately
+  // ✅ Web confirmation
   if (Platform.OS === 'web') {
-    // Web fallback since Alert.alert doesn't work on web
     const confirmed = window.confirm(`Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`);
-    if (!confirmed) return;
-  } else {
-    // Native mobile confirmation dialog
-    return Alert.alert(
-      'Confirm Deletion',
-      `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const updatedChapters = selectedStory.chapters.map(ch =>
-                ch.id === selectedChapter.id
-                  ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
-                  : ch
-              );
+    if (!confirmed) return; // user cancelled
 
-              await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
-
-              setSelectedStory({ ...selectedStory, chapters: updatedChapters });
-              const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
-              setSelectedChapter(updatedChapter || null);
-
-              Alert.alert('Deleted', `"${wordToDelete}" has been removed.`);
-            } catch (error) {
-              console.error('Error deleting vocabulary:', error);
-              Alert.alert('Error', 'Failed to delete vocabulary');
-            }
-          },
-        },
-      ]
-    );
+    // only delete after confirmation
+    deleteVocabItem(index);
+    return;
   }
 
-  // 🧱 If on web and confirmed, do the delete directly
+  // ✅ Native confirmation
+  Alert.alert(
+    'Confirm Deletion',
+    `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => deleteVocabItem(index),
+      },
+    ]
+  );
+};
+
+// Helper function to actually perform deletion
+const deleteVocabItem = async (index: number) => {
+  if (!selectedStory || !selectedChapter) return;
+  const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
+
   try {
     const updatedChapters = selectedStory.chapters.map(ch =>
       ch.id === selectedChapter.id
@@ -875,10 +864,10 @@ const FlowAdminPanel = () => {
     const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
     setSelectedChapter(updatedChapter || null);
 
-    if (Platform.OS === 'web') alert(`"${wordToDelete}" deleted successfully.`);
+    Alert.alert('Deleted', `"${wordToDelete}" has been removed.`);
   } catch (error) {
     console.error('Error deleting vocabulary:', error);
-    if (Platform.OS === 'web') alert('Failed to delete vocabulary.');
+    Alert.alert('Error', 'Failed to delete vocabulary');
   }
 };
   // *** END OF MODIFIED FUNCTION ***
