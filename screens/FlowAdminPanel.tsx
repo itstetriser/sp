@@ -817,44 +817,70 @@ const FlowAdminPanel = () => {
 
   // *** MODIFIED FUNCTION ***
   const handleDeleteVocab = async (index: number) => {
-    if (!selectedStory || !selectedChapter) return;
+  if (!selectedStory || !selectedChapter) return;
 
-    const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
+  const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
 
-    // 1. Use window.confirm for web confirmation
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`
+  // ✅ Ask for confirmation immediately
+  if (Platform.OS === 'web') {
+    // Web fallback since Alert.alert doesn't work on web
+    const confirmed = window.confirm(`Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`);
+    if (!confirmed) return;
+  } else {
+    // Native mobile confirmation dialog
+    return Alert.alert(
+      'Confirm Deletion',
+      `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const updatedChapters = selectedStory.chapters.map(ch =>
+                ch.id === selectedChapter.id
+                  ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
+                  : ch
+              );
+
+              await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+
+              setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+              const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+              setSelectedChapter(updatedChapter || null);
+
+              Alert.alert('Deleted', `"${wordToDelete}" has been removed.`);
+            } catch (error) {
+              console.error('Error deleting vocabulary:', error);
+              Alert.alert('Error', 'Failed to delete vocabulary');
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  // 🧱 If on web and confirmed, do the delete directly
+  try {
+    const updatedChapters = selectedStory.chapters.map(ch =>
+      ch.id === selectedChapter.id
+        ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
+        : ch
     );
 
-    // 2. Only proceed if the user clicked "OK" (confirmed is true)
-    if (confirmed) {
-      console.log('Delete confirmed, proceeding...'); // Keep the log for debugging
-      try {
-        const updatedChapters = selectedStory.chapters.map(ch =>
-          ch.id === selectedChapter.id
-            ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
-            : ch
-        );
+    await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
 
-        await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+    setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+    const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+    setSelectedChapter(updatedChapter || null);
 
-        // Update local state
-        setSelectedStory({ ...selectedStory, chapters: updatedChapters });
-        const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
-        setSelectedChapter(updatedChapter || null);
-
-        // Use window.alert for success message in web
-        window.alert('Vocabulary word deleted');
-
-      } catch (error) {
-        console.error('Error deleting vocabulary:', error);
-        // Use window.alert for error message in web
-        window.alert('Failed to delete vocabulary');
-      }
-    } else {
-      console.log('Delete cancelled'); // Keep the log
-    }
-  };
+    if (Platform.OS === 'web') alert(`"${wordToDelete}" deleted successfully.`);
+  } catch (error) {
+    console.error('Error deleting vocabulary:', error);
+    if (Platform.OS === 'web') alert('Failed to delete vocabulary.');
+  }
+};
   // *** END OF MODIFIED FUNCTION ***
 
   const handleStartEditVocab = (index: number, vocabItem: any) => {
