@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
   headerTitle: { fontWeight: 'bold' },
   adminButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  sortWrapper: { marginTop: 4, marginBottom: 16, paddingHorizontal: 12, alignItems: 'flex-end' },
+  sortWrapper: { marginTop: 4, marginBottom: 16, paddingHorizontal: 12, alignItems: 'flex-end', zIndex: 1},
   sortContainer: { position: 'relative', zIndex: 10 },
   sortContainerOpen: { zIndex: 999 },
   sortSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignSelf: 'flex-start' },
