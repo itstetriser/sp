@@ -56,7 +56,6 @@ const FlowStoryScreen = ({ navigation }: any) => {
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [sortBy, setSortBy] = useState<'easiest' | 'hardest' | 'oldest' | 'newest'>('newest');
   
-  // Add caching mechanism
   const [lastFetch, setLastFetch] = useState(0);
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
   const [userProgress, setUserProgress] = useState<{[key: string]: number}>({});
@@ -131,7 +130,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
     return story.chapters.every(chapter => {
       const progressKey = `flow_${story.id}_${chapter.id}_percentage`;
       const progress = userProgress[progressKey];
-      return progress !== undefined && progress >= 70; // 70% threshold for completion
+      return progress !== undefined && progress >= 70;
     });
   };
 
@@ -152,14 +151,11 @@ const FlowStoryScreen = ({ navigation }: any) => {
   const getSortedStories = (): FlowStory[] => {
     let sortedStories = [...stories];
     
-    // *** MODIFIED SORTING LOGIC ***
     switch (sortBy) {
       case 'easiest':
-        // Sort by the numerical value of the difficulty level (ascending)
         sortedStories.sort((a, b) => (difficultyOrder[a.level] || 0) - (difficultyOrder[b.level] || 0));
         break;
       case 'hardest':
-        // Sort by the numerical value of the difficulty level (descending)
         sortedStories.sort((a, b) => (difficultyOrder[b.level] || 0) - (difficultyOrder[a.level] || 0));
         break;
       case 'oldest':
@@ -233,7 +229,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
       <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}> 
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { color: theme.primaryText, fontSize: getScaledFontSize(16) }]}>Loading flows...</Text>
+          <Text style={[styles.loadingText, { color: theme.primaryText, fontSize: getScaledFontSize(16) }]}>Loading stories...</Text>
         </View>
       </View>
     );
@@ -254,52 +250,51 @@ const FlowStoryScreen = ({ navigation }: any) => {
         )}
       </View>
 
-      <View style={styles.sortWrapper}>
-        <View style={[styles.sortContainer, isSortOpen && styles.sortContainerOpen]}>
-          <TouchableOpacity style={[styles.sortSelector, { borderColor: '#e0e0e0', backgroundColor: theme.cardColor }]} onPress={() => setIsSortOpen(!isSortOpen)}>
-            <Text style={[styles.sortSelectorText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>
-              Sort by
-            </Text>
-            <Ionicons name={isSortOpen ? 'chevron-up' : 'chevron-down'} size={18} color={theme.secondaryText} />
-          </TouchableOpacity>
-          {isSortOpen && (
-            <View style={[styles.sortMenu, { backgroundColor: theme.cardColor, borderColor: '#e0e0e0' }]}>
-              {[
-                { key: 'easiest', label: 'Easiest first' },
-                { key: 'hardest', label: 'Hardest first' },
-                { key: 'oldest', label: 'Oldest first' },
-                { key: 'newest', label: 'Newest first' },
-              ].map(opt => (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={styles.sortOption}
-                  onPress={() => { setSortBy(opt.key as any); setIsSortOpen(false); }}
-                >
-                  <Text style={[styles.sortOptionText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>{opt.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-      </View>
-
       {stories.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyTitle, { color: theme.primaryText, fontSize: getScaledFontSize(20) }]}>No Flow Stories</Text>
-          <Text style={[styles.emptySubtitle, { color: theme.secondaryText, fontSize: getScaledFontSize(16) }]}>Create one in the admin panel</Text>
+          <Text style={[styles.emptyTitle, { color: theme.primaryText, fontSize: getScaledFontSize(20) }]}>No Stories Available</Text>
+          <Text style={[styles.emptySubtitle, { color: theme.secondaryText, fontSize: getScaledFontSize(16) }]}>Create one in the admin panel to get started.</Text>
         </View>
       ) : (
         <ScrollView style={styles.listContainer} showsVerticalScrollIndicator={false}>
           {lastReadStory && (
             <View>
-              <Text style={[styles.lastReadHeader, { color: theme.primaryText }]}>Last Read</Text>
+              <Text style={[styles.sectionHeaderTitle, { color: theme.primaryText }]}>Last Read</Text>
               {renderStoryCard(lastReadStory, true)}
             </View>
           )}
 
-          {otherStories.length > 0 && lastReadStory && (
-             <View style={[styles.divider, {backgroundColor: theme.borderColor}]} />
-          )}
+          <View style={styles.listHeaderContainer}>
+             <Text style={[styles.sectionHeaderTitle, { color: theme.primaryText }]}>All Stories</Text>
+            <View style={styles.sortWrapper}>
+                <View style={[styles.sortContainer, isSortOpen && styles.sortContainerOpen]}>
+                <TouchableOpacity style={[styles.sortSelector, { borderColor: '#e0e0e0', backgroundColor: theme.cardColor }]} onPress={() => setIsSortOpen(!isSortOpen)}>
+                    <Text style={[styles.sortSelectorText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>
+                    Sort by
+                    </Text>
+                    <Ionicons name={isSortOpen ? 'chevron-up' : 'chevron-down'} size={18} color={theme.secondaryText} />
+                </TouchableOpacity>
+                {isSortOpen && (
+                    <View style={[styles.sortMenu, { backgroundColor: theme.cardColor, borderColor: '#e0e0e0' }]}>
+                    {[
+                        { key: 'easiest', label: 'Easiest first' },
+                        { key: 'hardest', label: 'Hardest first' },
+                        { key: 'oldest', label: 'Oldest first' },
+                        { key: 'newest', label: 'Newest first' },
+                    ].map(opt => (
+                        <TouchableOpacity
+                        key={opt.key}
+                        style={styles.sortOption}
+                        onPress={() => { setSortBy(opt.key as any); setIsSortOpen(false); }}
+                        >
+                        <Text style={[styles.sortOptionText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>{opt.label}</Text>
+                        </TouchableOpacity>
+                    ))}
+                    </View>
+                )}
+                </View>
+            </View>
+          </View>
 
           {otherStories.map(story => renderStoryCard(story, false))}
         </ScrollView>
@@ -315,12 +310,24 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 },
   headerTitle: { fontWeight: 'bold' },
   adminButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  sortWrapper: { marginTop: 4, marginBottom: 16, paddingHorizontal: 16, alignItems: 'flex-start', zIndex: 1, },
+  listHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 12,
+    zIndex: 1, // Ensure this header is above the list
+  },
+  sectionHeaderTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  sortWrapper: {},
   sortContainer: { position: 'relative', width: 150 },
   sortContainerOpen: { zIndex: 999 },
   sortSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, },
   sortSelectorText: { fontWeight: '600' },
-  sortMenu: { position: 'absolute', top: 48, left: 0, right: 0, borderRadius: 12, borderWidth: 1, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 12, zIndex: 9999 },
+  sortMenu: { position: 'absolute', top: 48, right: 0, width: '100%', borderRadius: 12, borderWidth: 1, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 12, zIndex: 9999 },
   sortOption: { paddingHorizontal: 12, paddingVertical: 10 },
   sortOptionText: {},
   listContainer: { paddingHorizontal: 16, paddingTop: 8, zIndex: 0 },
@@ -330,7 +337,7 @@ const styles = StyleSheet.create({
   storyImage: { width: '100%', height: '100%' },
   storyImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   storyEmojiLarge: { fontSize: 40 },
-  storyInfo: { flex: 1, justifyContent: 'center', paddingBottom: 22 }, // Added padding for label
+  storyInfo: { flex: 1, justifyContent: 'center', paddingBottom: 22 },
   storyTitle: { fontWeight: 'bold', marginBottom: 6 },
   storyDescription: {},
   completionBadge: { position: 'absolute', top: 12, right: 12, zIndex: 10 },
@@ -339,11 +346,6 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyTitle: { fontWeight: 'bold', marginBottom: 4 },
   emptySubtitle: { textAlign: 'center' },
-  lastReadHeader: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
   difficultyLabel: {
     position: 'absolute',
     bottom: 0,
