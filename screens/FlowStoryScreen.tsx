@@ -44,6 +44,9 @@ interface FlowQuestion {
   incorrectEmoji3: string;
 }
 
+// Define the logical order for difficulty levels
+const difficultyOrder: Record<string, number> = { 'Easy': 1, 'Medium': 2, 'Hard': 3 };
+
 const FlowStoryScreen = ({ navigation }: any) => {
   const { theme } = useTheme();
   const { getFontSizeMultiplier } = useFontSize();
@@ -149,12 +152,15 @@ const FlowStoryScreen = ({ navigation }: any) => {
   const getSortedStories = (): FlowStory[] => {
     let sortedStories = [...stories];
     
+    // *** MODIFIED SORTING LOGIC ***
     switch (sortBy) {
       case 'easiest':
-        sortedStories.sort((a, b) => (a.level || '').localeCompare(b.level || ''));
+        // Sort by the numerical value of the difficulty level (ascending)
+        sortedStories.sort((a, b) => (difficultyOrder[a.level] || 0) - (difficultyOrder[b.level] || 0));
         break;
       case 'hardest':
-        sortedStories.sort((a, b) => (b.level || '').localeCompare(a.level || ''));
+        // Sort by the numerical value of the difficulty level (descending)
+        sortedStories.sort((a, b) => (difficultyOrder[b.level] || 0) - (difficultyOrder[a.level] || 0));
         break;
       case 'oldest':
         sortedStories.sort((a, b) => (getCreatedAtDate(a.createdAt)).getTime() - (getCreatedAtDate(b.createdAt)).getTime());
@@ -359,3 +365,4 @@ const styles = StyleSheet.create({
 });
 
 export default FlowStoryScreen;
+
