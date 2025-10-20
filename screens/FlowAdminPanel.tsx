@@ -819,48 +819,41 @@ const FlowAdminPanel = () => {
   const handleDeleteVocab = async (index: number) => {
     if (!selectedStory || !selectedChapter) return;
 
-    // Get the word to make the confirmation message more specific
     const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
 
-    // 1. Show the confirmation alert first
-    Alert.alert(
-      'Confirm Deletion', // Title
-      `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`, // Message
-      [
-        // 2. The "Cancel" button
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        // 3. The "Delete" button, which runs the original code on press
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            // This is your original try/catch block, now moved inside the onPress
-            try {
-              const updatedChapters = selectedStory.chapters.map(ch =>
-                ch.id === selectedChapter.id
-                  ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
-                  : ch
-              );
-
-              await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
-
-              // Update local state
-              setSelectedStory({ ...selectedStory, chapters: updatedChapters });
-              const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
-              setSelectedChapter(updatedChapter || null);
-
-              Alert.alert('Success', 'Vocabulary word deleted');
-            } catch (error) {
-              console.error('Error deleting vocabulary:', error);
-              Alert.alert('Error', 'Failed to delete vocabulary');
-            }
-          },
-        },
-      ]
+    // 1. Use window.confirm for web confirmation
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`
     );
+
+    // 2. Only proceed if the user clicked "OK" (confirmed is true)
+    if (confirmed) {
+      console.log('Delete confirmed, proceeding...'); // Keep the log for debugging
+      try {
+        const updatedChapters = selectedStory.chapters.map(ch =>
+          ch.id === selectedChapter.id
+            ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
+            : ch
+        );
+
+        await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+
+        // Update local state
+        setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+        const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+        setSelectedChapter(updatedChapter || null);
+
+        // Use window.alert for success message in web
+        window.alert('Vocabulary word deleted');
+
+      } catch (error) {
+        console.error('Error deleting vocabulary:', error);
+        // Use window.alert for error message in web
+        window.alert('Failed to delete vocabulary');
+      }
+    } else {
+      console.log('Delete cancelled'); // Keep the log
+    }
   };
   // *** END OF MODIFIED FUNCTION ***
 
