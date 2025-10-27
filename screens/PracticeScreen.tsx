@@ -277,7 +277,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                     <Text style={[styles.detailLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(12) }]}>EXAMPLES</Text>
                     {word.example1 && (
                       <Text style={[styles.exampleText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>• {word.example1}</Text>
-NEW_LINE                    )}
+                    )}
                     {word.example2 && (
                       <Text style={[styles.exampleText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>• {word.example2}</Text>
                     )}
