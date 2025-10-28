@@ -331,7 +331,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
                 {current && (
                     <View>
                     <View style={styles.questionContainer}>
-                        <Text style={[styles.npcSentence, { color: theme.primaryText, fontSize: getScaledFontSize(22) }]}>{current.npcSentence}</Text>
+                        <Text style={[styles.npcSentence, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>{current.npcSentence}</Text>
                     </View>
                     <View style={styles.optionsContainer} >
                         {getOptionsForQuestion(current).map((opt, i) => { // Use getOptionsForQuestion here
