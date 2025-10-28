@@ -155,26 +155,27 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
 
   // --- Calculate mastery level (simplified for display) ---
   const calculateMasteryLevel = (word: WordWithSpacedRepetition): 'new' | 'learning' | 'reviewing' | 'learned' => {
-      if (word.masteryLevel === 'learned') return 'learned';
+      if (word.masteryLevel === 'learned') return 'learned'; // Already marked as learned
       const reviewCount = word.reviewCount || 0;
       if (reviewCount === 0) return 'new';
-      if (reviewCount < 3) return 'learning';
-      return 'reviewing';
+      // Treat any word reviewed at least once but not learned as 'learning'
+      return 'learning'; // Simplified: Combine learning & reviewing
   };
 
 
   // --- Calculate statistics ---
+  // UPDATED getStats
   const getStats = () => {
     const totalWords = words.length;
     const dueWordsCount = getWordsDueForReview().length;
     const learnedWordsCount = words.filter(word => word.masteryLevel === 'learned').length;
-    const newWordsCount = words.filter(word => (word.reviewCount || 0) === 0 && word.masteryLevel !== 'learned').length;
-    const learningWordsCount = words.filter(word => (word.reviewCount || 0) > 0 && (word.reviewCount || 0) < 3 && word.masteryLevel !== 'learned').length; // Example logic
-    const reviewingWordsCount = words.filter(word => (word.reviewCount || 0) >= 3 && word.masteryLevel !== 'learned').length; // Example logic
+    const newWordsCount = words.filter(word => calculateMasteryLevel(word) === 'new').length;
+    // Calculate combined 'Learning' count
+    const learningCount = words.filter(word => calculateMasteryLevel(word) === 'learning').length; // Includes reviewing now
 
     return {
       totalWords, dueWordsCount, learnedWordsCount,
-      newWordsCount, learningWordsCount, reviewingWordsCount
+      newWordsCount, learningCount // Renamed combined count
     };
   };
 
@@ -248,7 +249,7 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
                 </View>
               )}
 
-               {/* Stats Section */}
+               {/* UPDATED Stats Section */}
                <View style={[styles.statsSection, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
                  <Text style={[styles.statsTitle, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>Word List Summary</Text>
                  <View style={styles.statRow}>
@@ -263,14 +264,12 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
                     <Text style={[styles.statLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>New:</Text>
                     <Text style={[styles.statValue, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>{stats.newWordsCount}</Text>
                  </View>
+                  {/* Combined Learning row */}
                   <View style={styles.statRow}>
                     <Text style={[styles.statLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>Learning:</Text>
-                    <Text style={[styles.statValue, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>{stats.learningWordsCount}</Text>
+                    <Text style={[styles.statValue, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>{stats.learningCount}</Text>
                  </View>
-                  <View style={styles.statRow}>
-                    <Text style={[styles.statLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>Reviewing:</Text>
-                    <Text style={[styles.statValue, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>{stats.reviewingWordsCount}</Text>
-                 </View>
+                  {/* Removed Reviewing row */}
                  <View style={styles.statRow}>
                     <Text style={[styles.statLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>Learned:</Text>
                     <Text style={[styles.statValue, { color: theme.success, fontSize: getScaledFontSize(14) }]}>{stats.learnedWordsCount}</Text>
@@ -285,7 +284,7 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
   );
 };
 
-// --- Styles ---
+// --- Styles (Unchanged) ---
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
