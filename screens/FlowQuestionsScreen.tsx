@@ -27,8 +27,8 @@ type Option = { text: string; emoji: string; correct: boolean };
 
 // Define the Y positions for the animation
 const QUESTION_Y_POSITION = 0;
-// Increased distance for the next preview to start lower
-const NEXT_PREVIEW_Y_START_POSITION = 350; // NEW: Renamed and increased value
+// ADJUSTED THIS VALUE
+const NEXT_PREVIEW_Y_START_POSITION = 300; // Try 300, adjust based on testing
 const QUESTION_Y_END_POSITION = -150;
 
 const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
@@ -314,13 +314,13 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
             persistProgress(newScore);
         } else {
             Animated.timing(transitionAnim, {
-                toValue: 1, duration: 600, useNativeDriver: false,
+                toValue: 1, duration: 600, useNativeDriver: false, // Keep false for non-native props
             }).start(() => {
                 const nextIdx = currentIndex + 1;
                 setCurrentIndex(nextIdx);
                 persistLastIndex(nextIdx);
-                transitionAnim.setValue(0);
-                optionsOpacity.setValue(0);
+                transitionAnim.setValue(0); // Reset instantly
+                optionsOpacity.setValue(0); // Prepare options fade in
                 Animated.timing(optionsOpacity, {
                     toValue: 1, duration: 400, useNativeDriver: true,
                 }).start();
@@ -340,9 +340,10 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
       headerTitle: chapter.title || "Questions",
       headerBackVisible: false,
       headerLeft: () => (
+        // FIX: Removed the Text component for "Chapter"
         <TouchableOpacity onPress={handleBackConfirm} style={styles.headerBackButton}>
           <Ionicons name="arrow-back" size={24} color={theme.primaryText} />
-          <Text style={[styles.headerBackText, { color: theme.primaryText }]}>Chapter</Text>
+          {/* Text component removed */}
         </TouchableOpacity>
       ),
     });
@@ -378,56 +379,13 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         const passed = successRate >= 70;
 
         if (feedbackStep === 'score') { /* ... Score modal ... */
-            return (
-                <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-                <View style={styles.contentWrapper}> <View style={styles.completionContainer}>
-                <View style={[styles.completionCard, { backgroundColor: theme.cardColor }]}>
-                <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Chapter Complete! 🎉</Text>
-                <Text style={[styles.scoreLine, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>Your Score: {score} / {totalQuestions} ({successRate}%)</Text>
-                <Text style={{ color: passed ? theme.success : theme.error, fontWeight: 'bold', marginTop: 12, fontSize: getScaledFontSize(16), textAlign: 'center' }}>{passed ? '✅ PASSED' : '❌ FAILED'}</Text>
-                <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary, marginTop: 24 }]} onPress={() => setFeedbackStep('vocabulary')}>
-                <Text style={styles.actionButtonTextPrimary}>Next</Text>
-                </TouchableOpacity>
-                </View></View></View></View>
-            );
+            return ( <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}> <View style={styles.contentWrapper}> <View style={styles.completionContainer}> <View style={[styles.completionCard, { backgroundColor: theme.cardColor }]}> <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Chapter Complete! 🎉</Text> <Text style={[styles.scoreLine, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>Your Score: {score} / {totalQuestions} ({successRate}%)</Text> <Text style={{ color: passed ? theme.success : theme.error, fontWeight: 'bold', marginTop: 12, fontSize: getScaledFontSize(16), textAlign: 'center' }}>{passed ? '✅ PASSED' : '❌ FAILED'}</Text> <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary, marginTop: 24 }]} onPress={() => setFeedbackStep('vocabulary')}> <Text style={styles.actionButtonTextPrimary}>Next</Text> </TouchableOpacity> </View></View></View></View> );
         }
        if (feedbackStep === 'vocabulary') { /* ... Vocabulary modal ... */
-        return (
-            <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-            <View style={styles.contentWrapper}> <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-            <View style={[styles.completionCard, { backgroundColor: theme.cardColor, padding: 0, overflow: 'hidden' }]}>
-            <View style={{ padding: 24, paddingBottom: 16 }}>
-            <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(26) }]}>New Vocabulary 📚</Text>
-            <Text style={[styles.scoreLine, { color: theme.secondaryText, marginBottom: 16, fontSize: getScaledFontSize(16) }]}>Tap words to add them to your practice list.</Text>
-            </View>
-            {chapterVocabulary.length > 0 ? ( <View style={styles.vocabList}>
-            {chapterVocabulary.map((vocabItem, index) => { const isSaved = isVocabWordSaved(vocabItem.word); return (
-            <TouchableOpacity key={index} style={[ styles.vocabItem, { backgroundColor: isSaved ? theme.success + '20' : theme.surfaceColor, borderColor: isSaved ? theme.success : theme.borderColor, }]} onPress={() => handleVocabToggle(vocabItem)} >
-            <View style={styles.vocabHeader}><Text style={[ styles.vocabWord, { color: isSaved ? theme.success : theme.primaryText, fontSize: getScaledFontSize(18) }]}>{vocabItem.word}</Text><Text style={[ styles.vocabType, { color: isSaved ? theme.success : theme.secondaryText, fontSize: getScaledFontSize(14) }]}>{vocabItem.type}</Text></View>
-            <Text style={[ styles.vocabDefinition, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>{vocabItem.definition}</Text>
-            {vocabItem.equivalent && (<Text style={[ styles.vocabEquivalent, { color: theme.accentText, fontSize: getScaledFontSize(14) } ]}>{vocabItem.equivalent}</Text>)}
-            <View style={styles.vocabStatus}><Text style={[ styles.vocabStatusText, { color: isSaved ? theme.success : theme.primary, fontSize: getScaledFontSize(14) } ]}>{isSaved ? '✓ Added' : 'Tap to add'}</Text></View>
-            </TouchableOpacity> ); })} </View>
-            ) : ( <Text style={[styles.scoreLine, { color: theme.secondaryText, textAlign: 'center', paddingBottom: 24, fontSize: getScaledFontSize(16) }]}> No new vocabulary in this chapter. </Text> )}
-            <View style={{ padding: 24, borderTopWidth: 1, borderColor: theme.borderColor, backgroundColor: theme.cardColor }}>
-            <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary }]} onPress={() => setFeedbackStep('congrats')}>
-            <Text style={styles.actionButtonTextPrimary}>Continue</Text>
-            </TouchableOpacity></View></View></ScrollView></View></View>
-        );
+        return ( <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}> <View style={styles.contentWrapper}> <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}> <View style={[styles.completionCard, { backgroundColor: theme.cardColor, padding: 0, overflow: 'hidden' }]}> <View style={{ padding: 24, paddingBottom: 16 }}> <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(26) }]}>New Vocabulary 📚</Text> <Text style={[styles.scoreLine, { color: theme.secondaryText, marginBottom: 16, fontSize: getScaledFontSize(16) }]}>Tap words to add them to your practice list.</Text> </View> {chapterVocabulary.length > 0 ? ( <View style={styles.vocabList}> {chapterVocabulary.map((vocabItem, index) => { const isSaved = isVocabWordSaved(vocabItem.word); return ( <TouchableOpacity key={index} style={[ styles.vocabItem, { backgroundColor: isSaved ? theme.success + '20' : theme.surfaceColor, borderColor: isSaved ? theme.success : theme.borderColor, }]} onPress={() => handleVocabToggle(vocabItem)} > <View style={styles.vocabHeader}><Text style={[ styles.vocabWord, { color: isSaved ? theme.success : theme.primaryText, fontSize: getScaledFontSize(18) }]}>{vocabItem.word}</Text><Text style={[ styles.vocabType, { color: isSaved ? theme.success : theme.secondaryText, fontSize: getScaledFontSize(14) }]}>{vocabItem.type}</Text></View> <Text style={[ styles.vocabDefinition, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>{vocabItem.definition}</Text> {vocabItem.equivalent && (<Text style={[ styles.vocabEquivalent, { color: theme.accentText, fontSize: getScaledFontSize(14) } ]}>{vocabItem.equivalent}</Text>)} <View style={styles.vocabStatus}><Text style={[ styles.vocabStatusText, { color: isSaved ? theme.success : theme.primary, fontSize: getScaledFontSize(14) } ]}>{isSaved ? '✓ Added' : 'Tap to add'}</Text></View> </TouchableOpacity> ); })} </View> ) : ( <Text style={[styles.scoreLine, { color: theme.secondaryText, textAlign: 'center', paddingBottom: 24, fontSize: getScaledFontSize(16) }]}> No new vocabulary in this chapter. </Text> )} <View style={{ padding: 24, borderTopWidth: 1, borderColor: theme.borderColor, backgroundColor: theme.cardColor }}> <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary }]} onPress={() => setFeedbackStep('congrats')}> <Text style={styles.actionButtonTextPrimary}>Continue</Text> </TouchableOpacity></View></View></ScrollView></View></View> );
        }
         if (feedbackStep === 'congrats') { /* ... Congrats modal ... */
-            return (
-                <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-                <View style={styles.contentWrapper}><View style={styles.completionContainer}>
-                <View style={[styles.completionCard, { backgroundColor: theme.cardColor }]}>
-                <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Congratulations! 🎊</Text>
-                <Text style={[styles.scoreLine, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>You've completed the chapter!</Text>
-                <Text style={{ color: theme.secondaryText, textAlign: 'center', marginTop: 12, fontSize: getScaledFontSize(16), lineHeight: 22 }}> {selectedVocabWords.length > 0 ? `You added ${selectedVocabWords.length} new word${selectedVocabWords.length > 1 ? 's' : ''} to your practice list.` : 'Keep playing to learn more words!'} </Text>
-                {nextChapter && ( <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary, marginTop: 24 }]} onPress={async () => { if (!isPro && (nextIndex ?? 0) >= 3) { return Alert.alert( 'Get Pro to Continue', 'Chapters 4+ require Pro.', [ { text: 'Not now', style: 'cancel' }, { text: 'Buy Pro', onPress: () => navigation.navigate('Settings', { screen: 'Settings' }) } ]); } navigation.replace('FlowChapterIntroScreen', { storyId, chapter: nextChapter, storyTitle: '', startIndex: 0 }); }}> <Text style={styles.actionButtonTextPrimary}>Go to Next Chapter</Text> </TouchableOpacity> )}
-                <TouchableOpacity style={[styles.actionButtonSecondary, { backgroundColor: theme.surfaceColor, marginTop: 12 }]} onPress={() => navigation.navigate('FlowDetailScreen', { storyId })}> <Text style={[styles.actionButtonTextSecondary, { color: theme.primaryText }]}>Back to Story Chapters</Text> </TouchableOpacity>
-                {!passed && ( <TouchableOpacity style={[styles.actionButtonTertiary, { borderColor: theme.secondaryText, marginTop: 12 }]} onPress={() => { setCurrentIndex(0); setScore(0); setAnswered({}); setSelectedIdx({}); setShowCompletion(false); setFeedbackStep('score'); setSelectedVocabWords([]); }}> <Text style={[styles.actionButtonTextTertiary, { color: theme.secondaryText }]}>Retry Chapter</Text> </TouchableOpacity> )}
-                </View></View></View></View>
-            );
+            return ( <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}> <View style={styles.contentWrapper}><View style={styles.completionContainer}> <View style={[styles.completionCard, { backgroundColor: theme.cardColor }]}> <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Congratulations! 🎊</Text> <Text style={[styles.scoreLine, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>You've completed the chapter!</Text> <Text style={{ color: theme.secondaryText, textAlign: 'center', marginTop: 12, fontSize: getScaledFontSize(16), lineHeight: 22 }}> {selectedVocabWords.length > 0 ? `You added ${selectedVocabWords.length} new word${selectedVocabWords.length > 1 ? 's' : ''} to your practice list.` : 'Keep playing to learn more words!'} </Text> {nextChapter && ( <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary, marginTop: 24 }]} onPress={async () => { if (!isPro && (nextIndex ?? 0) >= 3) { return Alert.alert( 'Get Pro to Continue', 'Chapters 4+ require Pro.', [ { text: 'Not now', style: 'cancel' }, { text: 'Buy Pro', onPress: () => navigation.navigate('Settings', { screen: 'Settings' }) } ]); } navigation.replace('FlowChapterIntroScreen', { storyId, chapter: nextChapter, storyTitle: '', startIndex: 0 }); }}> <Text style={styles.actionButtonTextPrimary}>Go to Next Chapter</Text> </TouchableOpacity> )} <TouchableOpacity style={[styles.actionButtonSecondary, { backgroundColor: theme.surfaceColor, marginTop: 12 }]} onPress={() => navigation.navigate('FlowDetailScreen', { storyId })}> <Text style={[styles.actionButtonTextSecondary, { color: theme.primaryText }]}>Back to Story Chapters</Text> </TouchableOpacity> {!passed && ( <TouchableOpacity style={[styles.actionButtonTertiary, { borderColor: theme.secondaryText, marginTop: 12 }]} onPress={() => { setCurrentIndex(0); setScore(0); setAnswered({}); setSelectedIdx({}); setShowCompletion(false); setFeedbackStep('score'); setSelectedVocabWords([]); }}> <Text style={[styles.actionButtonTextTertiary, { color: theme.secondaryText }]}>Retry Chapter</Text> </TouchableOpacity> )} </View></View></View></View> );
         }
         return null;
     }
@@ -442,21 +400,22 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const currentQuestionAnimStyle = {
     opacity: transitionAnim.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: 'clamp' }),
     transform: [{ translateY: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [QUESTION_Y_POSITION, QUESTION_Y_END_POSITION], extrapolate: 'clamp' }) }],
-    zIndex: 10, // FIX: Ensure current question is temporarily above next preview
+    // FIX: Apply zIndex directly
+    zIndex: 10,
   };
 
   const nextPreviewAnimStyle = {
     opacity: transitionAnim.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 1], extrapolate: 'clamp' }),
-    transform: [{ translateY: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [NEXT_PREVIEW_Y_START_POSITION, QUESTION_Y_POSITION], extrapolate: 'clamp' }) }], // Start lower
+    transform: [{ translateY: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [NEXT_PREVIEW_Y_START_POSITION, QUESTION_Y_POSITION], extrapolate: 'clamp' }) }],
     backgroundColor: transitionAnim.interpolate({ inputRange: [0, 0.8, 1], outputRange: [theme.surfaceColor, theme.surfaceColor, 'transparent'] }),
-    zIndex: 5, // FIX: Ensure next preview is below current question initially
+     // FIX: Apply zIndex directly
+    zIndex: 5,
   };
   const nextLabelAnimStyle = { opacity: transitionAnim.interpolate({ inputRange: [0, 0.3], outputRange: [1, 0], extrapolate: 'clamp' }) };
   const nextTextAnimStyle = {
     color: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [theme.secondaryText, theme.primaryText] }),
     fontSize: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [getScaledFontSize(16), getScaledFontSize(22)] }),
     fontWeight: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: ['400', '600'] } as any),
-    // fontStyle removed
   };
   // --- End of animation style definitions ---
 
@@ -475,6 +434,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
                 <Text style={[styles.scoreText, { color: theme.primary, fontSize: getScaledFontSize(16), fontWeight: 'bold' }]}>{score} correct</Text>
               </View>
               <View style={[styles.progressBar, { backgroundColor: theme.surfaceColor }]}>
+                {/* Use Animated.View for progress fill if you want it animated */}
                 <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${progressPct}%` }]} />
               </View>
             </View>
@@ -550,7 +510,7 @@ const styles = StyleSheet.create({
   progressText: { fontWeight: '600' },
   progressBar: { height: 16, borderRadius: 999, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 999 },
-  // FIX: Increased minHeight to ensure preview is visible
+  // FIX: Increased minHeight significantly
   animationContainer: { position: 'relative', minHeight: 600, marginBottom: 20 },
   questionContainer: { marginVertical: 24, paddingHorizontal: 8, minHeight: 80, justifyContent: 'center' },
   npcSentence: { fontWeight: '600', textAlign: 'center', lineHeight: 30 },
@@ -562,16 +522,13 @@ const styles = StyleSheet.create({
   scoreText: { fontWeight: '600' },
   nextPreviewContainer: {
     position: 'absolute', left: 16, right: 16, top: 0, // Keep top: 0
-    // marginTop removed, position controlled by transform
     padding: 16, borderRadius: 16,
-    // Background color and opacity controlled by animation
-    // zIndex set in animation style
+    // zIndex and other props controlled by animation style
   },
   nextPreviewLabel: { textTransform: 'uppercase', fontWeight: 'bold', marginBottom: 8 },
   nextPreviewText: {
      fontStyle: 'italic', // Apply italic statically
      textAlign: 'center', lineHeight: 30, // Match npcSentence
-     // color, fontSize, fontWeight controlled by animation
   },
   completionContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 20 },
   completionCard: { borderRadius: 20, padding: 24, width: '100%', maxWidth: 420, overflow: 'hidden' },
@@ -593,7 +550,7 @@ const styles = StyleSheet.create({
   vocabStatus: { marginTop: 12, alignItems: 'flex-start' },
   vocabStatusText: { fontSize: 14, fontWeight: '600' },
   headerBackButton: { paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center' },
-  headerBackText: { fontSize: 16, marginLeft: 6 },
+  headerBackText: { fontSize: 16, marginLeft: 6 }, // Removed static color
 });
 
 export default FlowQuestionsScreen;
