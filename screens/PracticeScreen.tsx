@@ -265,7 +265,7 @@ const PracticeScreen = ({ route, navigation, setCurrentRoute }: any) => {
                   </View>
                 ) : (
                     <View style={[styles.detailSection, { backgroundColor: theme.surfaceColor, borderColor: theme.borderColor }]}>
-                    <Text style={[styles.detailLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(1FINAL_RESPONSE2) }]}>DEFINITION</Text>
+                    <Text style={[styles.detailLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(12) }]}>DEFINITION</Text>
                     <Text style={[styles.detailPlaceholder, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>
                         No definition available.
                     </Text>
