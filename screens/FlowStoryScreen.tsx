@@ -55,35 +55,37 @@ const FlowStoryScreen = ({ navigation }: any) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [sortBy, setSortBy] = useState<'easiest' | 'hardest' | 'oldest' | 'newest'>('newest');
-  
+
   const [lastFetch, setLastFetch] = useState(0);
   const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
   const [userProgress, setUserProgress] = useState<{[key: string]: number}>({});
   const [lastOpenedStoryId, setLastOpenedStoryId] = useState<string | null>(null);
 
   const getScaledFontSize = (baseSize: number) => {
-    const multiplier = getFontSizeMultiplier();
-    return Math.round(baseSize * multiplier);
+    const multiplier = getFontSizeMultiplier() || 1; // Ensure multiplier has a default
+    const result = Math.round(baseSize * multiplier);
+    return isNaN(result) ? baseSize : result; // Prevent NaN
   };
+
 
   const fetchStories = async (forceRefresh = false) => {
     try {
       if (!forceRefresh && Date.now() - lastFetch < CACHE_DURATION && stories.length > 0) {
         return;
       }
-      
+
       setLoading(true);
       const q = query(
-        collection(db, 'flowStories'), 
+        collection(db, 'flowStories'),
         where('active', '==', true),
         limit(50)
       );
       const querySnapshot = await getDocs(q);
       const storiesData = querySnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) })) as FlowStory[];
-      
-      const activeStories = storiesData.map(s => ({ 
-        ...s, 
-        chapters: (s.chapters || []).filter(c => c.active === true) 
+
+      const activeStories = storiesData.map(s => ({
+        ...s,
+        chapters: (s.chapters || []).filter(c => c.active === true)
       }));
       setStories(activeStories);
       setLastFetch(Date.now());
@@ -98,7 +100,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
     try {
       const user = auth.currentUser;
       if (!user) return;
-      
+
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
@@ -115,7 +117,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
     try {
       const user = auth.currentUser;
       if (!user) return;
-      
+
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, { lastOpenedStoryId: storyId });
       setLastOpenedStoryId(storyId);
@@ -126,7 +128,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
 
   const isStoryCompleted = (story: FlowStory): boolean => {
     if (!story.chapters || story.chapters.length === 0) return false;
-    
+
     return story.chapters.every(chapter => {
       const progressKey = `flow_${story.id}_${chapter.id}_percentage`;
       const progress = userProgress[progressKey];
@@ -150,7 +152,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
 
   const getSortedStories = (): FlowStory[] => {
     let sortedStories = [...stories];
-    
+
     switch (sortBy) {
       case 'easiest':
         sortedStories.sort((a, b) => (difficultyOrder[a.level] || 0) - (difficultyOrder[b.level] || 0));
@@ -162,45 +164,49 @@ const FlowStoryScreen = ({ navigation }: any) => {
         sortedStories.sort((a, b) => (getCreatedAtDate(a.createdAt)).getTime() - (getCreatedAtDate(b.createdAt)).getTime());
         break;
       case 'newest':
+      default: // Default to newest
         sortedStories.sort((a, b) => (getCreatedAtDate(b.createdAt)).getTime() - (getCreatedAtDate(a.createdAt)).getTime());
         break;
     }
-    
+
     return sortedStories;
   };
+
 
   const getCreatedAtDate = (value: any): Date => {
     if (!value) return new Date(0);
     if (value instanceof Date) return value;
-    if (typeof value?.toDate === 'function') return value.toDate();
+    if (typeof value?.toDate === 'function') return value.toDate(); // Handle Firestore Timestamps
+    if (typeof value === 'object' && value.seconds) { // Handle Firestore Timestamps (alternative check)
+      return new Date(value.seconds * 1000 + (value.nanoseconds || 0) / 1000000);
+    }
     const parsed = new Date(value);
     return isNaN(parsed.getTime()) ? new Date(0) : parsed;
   };
-  
+
+
   const renderStoryCard = (story: FlowStory, isLastRead: boolean) => {
     const completed = isStoryCompleted(story);
 
     const getDifficultyColor = (level: string) => {
-        // Using more modern, vibrant shades
-        if (level === 'Easy') return '#22C55E'; // Green 500
-        if (level === 'Medium') return '#F59E0B'; // Amber 500
-        if (level === 'Hard') return '#EF4444'; // Red 500
+        if (level === 'Easy') return '#22C55E';
+        if (level === 'Medium') return '#F59E0B';
+        if (level === 'Hard') return '#EF4444';
         return theme.secondaryText;
     };
 
     return (
-        <TouchableOpacity 
-            key={story.id} 
-            style={[styles.storyCard, { 
+        <TouchableOpacity
+            key={story.id}
+            style={[styles.storyCard, {
               backgroundColor: theme.cardColor,
-              borderColor: theme.borderColor // Use a subtle border from theme
-            }]} 
+              borderColor: theme.borderColor
+            }]}
             onPress={() => {
                 saveLastOpenedStory(story.id);
                 navigation.navigate('FlowDetailScreen', { storyId: story.id });
             }}>
-            
-            {/* Image/Emoji Circle */}
+
             <View style={[styles.storyImageContainer, { backgroundColor: theme.surfaceColor }]}>
                 {(story.imageUrl || (story.emoji && story.emoji.startsWith('http'))) ? (
                     <Image source={{ uri: story.imageUrl || story.emoji }} style={styles.storyImage} resizeMode="cover" />
@@ -209,18 +215,14 @@ const FlowStoryScreen = ({ navigation }: any) => {
                 )}
             </View>
 
-            {/* Story Info */}
             <View style={styles.storyInfo}>
                 <Text style={[styles.storyTitle, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]} numberOfLines={1}>{story.title}</Text>
                 <Text style={[styles.storyDescription, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]} numberOfLines={2}>{story.description}</Text>
-                
-                {/* Difficulty Pill (now in-flow) */}
                 <View style={[styles.difficultyLabel, { backgroundColor: getDifficultyColor(story.level) }]}>
                     <Text style={styles.difficultyLabelText}>{story.level}</Text>
                 </View>
             </View>
-            
-            {/* Completion Badge */}
+
             {completed && !isLastRead && (
                 <View style={styles.completionBadge}>
                     <Ionicons name="checkmark-circle" size={24} color={theme.success} />
@@ -232,7 +234,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}> 
+      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.primaryText, fontSize: getScaledFontSize(16) }]}>Loading stories...</Text>
@@ -247,7 +249,7 @@ const FlowStoryScreen = ({ navigation }: any) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      <View style={styles.contentWrapper}> 
+      <View style={styles.contentWrapper}>
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Stories</Text>
           {isAdmin && (
@@ -265,45 +267,49 @@ const FlowStoryScreen = ({ navigation }: any) => {
         ) : (
           <ScrollView style={styles.listContainer} showsVerticalScrollIndicator={false}>
             {lastReadStory && (
-              <View>
+              <View style={styles.sectionContainer}>
                 <Text style={[styles.sectionHeaderTitle, { color: theme.secondaryText }]}>Last Read</Text>
                 {renderStoryCard(lastReadStory, true)}
               </View>
             )}
 
-            <View style={styles.listHeaderContainer}>
-              <Text style={[styles.sectionHeaderTitle, { color: theme.secondaryText }]}>All Stories</Text>
-              <View style={styles.sortWrapper}>
+            <View style={styles.sectionContainer}>
+              <View style={styles.listHeaderContainer}>
+                <Text style={[styles.sectionHeaderTitle, { color: theme.secondaryText }]}>All Stories</Text>
+                <View style={styles.sortWrapper}>
                   <View style={[styles.sortContainer, isSortOpen && styles.sortContainerOpen]}>
-                  <TouchableOpacity style={[styles.sortSelector, { borderColor: theme.borderColor, backgroundColor: theme.cardColor }]} onPress={() => setIsSortOpen(!isSortOpen)}>
+                    <TouchableOpacity style={[styles.sortSelector, { borderColor: theme.borderColor, backgroundColor: theme.cardColor }]} onPress={() => setIsSortOpen(!isSortOpen)}>
                       <Text style={[styles.sortSelectorText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>
                         Sort by
                       </Text>
                       <Ionicons name={isSortOpen ? 'chevron-up' : 'chevron-down'} size={18} color={theme.secondaryText} />
-                  </TouchableOpacity>
-                  {isSortOpen && (
+                    </TouchableOpacity>
+                    {isSortOpen && (
                       <View style={[styles.sortMenu, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
-                      {[
-                          { key: 'easiest', label: 'Easiest first' },
-                          { key: 'hardest', label: 'Hardest first' },
-                          { key: 'oldest', label: 'Oldest first' },
-                          { key: 'newest', label: 'Newest first' },
-                      ].map(opt => (
+                        {[
+                            { key: 'newest', label: 'Newest first' },
+                            { key: 'oldest', label: 'Oldest first' },
+                            { key: 'easiest', label: 'Easiest first' },
+                            { key: 'hardest', label: 'Hardest first' },
+                        ].map(opt => (
                           <TouchableOpacity
-                          key={opt.key}
-                          style={styles.sortOption}
-                          onPress={() => { setSortBy(opt.key as any); setIsSortOpen(false); }}
+                            key={opt.key}
+                            style={[styles.sortOption, sortBy === opt.key && styles.sortOptionSelected]}
+                            onPress={() => { setSortBy(opt.key as any); setIsSortOpen(false); }}
                           >
-                          <Text style={[styles.sortOptionText, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>{opt.label}</Text>
+                            <Text style={[styles.sortOptionText, { color: sortBy === opt.key ? theme.primary : theme.primaryText, fontSize: getScaledFontSize(14) }]}>
+                                {opt.label}
+                            </Text>
+                            {sortBy === opt.key && <Ionicons name="checkmark" size={16} color={theme.primary} />}
                           </TouchableOpacity>
-                      ))}
+                        ))}
                       </View>
-                  )}
+                    )}
                   </View>
+                </View>
               </View>
+              {otherStories.map(story => renderStoryCard(story, false))}
             </View>
-
-            {otherStories.map(story => renderStoryCard(story, false))}
           </ScrollView>
         )}
       </View>
@@ -311,186 +317,180 @@ const FlowStoryScreen = ({ navigation }: any) => {
   );
 };
 
-//
-// NEW STYLESHEET
-//
+
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
-    alignItems: 'center', // Center the content wrapper
+    alignItems: 'center', // Center content
   },
   contentWrapper: {
     flex: 1,
     width: '100%',
     maxWidth: 800, // Max width for web/tablet
-    paddingTop: 16,
-    paddingHorizontal: 16, // Main horizontal padding
+    paddingHorizontal: 16,
   },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    paddingHorizontal: 4, // Adjusted padding (16 on parent + 4)
-    paddingVertical: 16, 
-    marginBottom: 8,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 16, // Use paddingTop instead of vertical padding
+    paddingBottom: 8, // Less padding bottom
+    // paddingHorizontal removed, handled by contentWrapper
   },
-  headerTitle: { 
-    fontWeight: '700', // Bolder
+  headerTitle: {
+    fontWeight: '700',
   },
-  adminButton: { 
-    padding: 8, 
-    borderRadius: 999, // Circular button
+  adminButton: {
+    padding: 8,
+    borderRadius: 999,
+  },
+  listContainer: {
+    paddingTop: 8,
+    // paddingHorizontal removed, handled by contentWrapper
+  },
+  sectionContainer: {
+    marginBottom: 16, // Add space between sections
   },
   listHeaderContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 20, // Increased spacing
     marginBottom: 12,
-    zIndex: 1,
-    paddingHorizontal: 4, // Align with card edges
+    zIndex: 1, // Keep sort dropdown above cards
+    paddingHorizontal: 4, // Align header text with cards
   },
   sectionHeaderTitle: {
     fontSize: 14,
     fontWeight: '600',
-    textTransform: 'uppercase', // Modern uppercase header
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  sortWrapper: {},
-  sortContainer: { 
-    position: 'relative', 
-    width: 150,
+  sortWrapper: {
+    // Wrapper for positioning if needed later
   },
-  sortContainerOpen: { 
-    zIndex: 999,
+  sortContainer: {
+    position: 'relative',
+    width: 150, // Fixed width for the dropdown button
   },
-  sortSelector: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    paddingHorizontal: 16, // More padding
-    paddingVertical: 8, // Smaller vertical padding for pill
+  sortContainerOpen: {
+    zIndex: 999, // Ensure dropdown is above everything when open
+  },
+  sortSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 999, // Pill shape
-    borderWidth: 1, 
+    borderWidth: 1,
   },
-  sortSelectorText: { 
+  sortSelectorText: {
     fontWeight: '600',
+    marginRight: 4, // Space before icon
   },
-  sortMenu: { 
-    position: 'absolute', 
-    top: 44, // Adjusted position
-    right: 0, 
-    width: '100%', 
-    borderRadius: 16, // More rounded
-    borderWidth: 1, 
-    overflow: 'hidden', 
-    shadowColor: '#000', 
-    shadowOpacity: 0.1, 
-    shadowRadius: 8, 
-    shadowOffset: { width: 0, height: 2 }, 
-    elevation: 12, 
-    zIndex: 9999,
-  },
-  sortOption: { 
-    paddingHorizontal: 16, 
-    paddingVertical: 12, // More padding
-  },
-  sortOptionText: {},
-  listContainer: { 
-    paddingHorizontal: 0, // Padding is now on contentWrapper
-    paddingTop: 8, 
-    zIndex: 0,
-  },
-  storyCard: { 
-    flexDirection: 'row', // Layout directly on the card
-    alignItems: 'center', // Center items vertically
-    borderRadius: 20, // More rounded corners
-    marginBottom: 16, 
+  sortMenu: {
+    position: 'absolute',
+    top: 44, // Position below the button
+    right: 0,
+    width: '100%',
+    borderRadius: 16, // Rounded corners for dropdown
+    borderWidth: 1,
     overflow: 'hidden',
-    padding: 16, // Padding on the card itself
-    borderWidth: 1, // Subtle border
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 12,
+    zIndex: 9999, // Highest zIndex
   },
-  storyImageContainer: { 
-    width: 64, // Smaller, circular
+  sortOption: {
+    flexDirection: 'row', // Align checkmark
+    justifyContent: 'space-between', // Align checkmark
+    alignItems: 'center', // Align checkmark
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+   sortOptionSelected: {
+    // Maybe add a subtle background or keep it simple
+  },
+  sortOptionText: {
+    // Styles applied dynamically based on selection
+  },
+  storyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    marginBottom: 16,
+    overflow: 'hidden',
+    padding: 16,
+    borderWidth: 1,
+  },
+  storyImageContainer: {
+    width: 64,
     height: 64,
     borderRadius: 999, // Circle
-    marginRight: 16, 
+    marginRight: 16,
     overflow: 'hidden',
-    alignItems: 'center', // Center emoji
-    justifyContent: 'center', // Center emoji
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  storyImage: { 
-    width: '100%', 
-    height: '100%',
-  },
-  storyImagePlaceholder: { 
-    flex: 1, 
+  storyImage: {
     width: '100%',
     height: '100%',
-    alignItems: 'center', 
+  },
+  storyEmojiLarge: {
+    fontSize: 32,
+  },
+  storyInfo: {
+    flex: 1,
     justifyContent: 'center',
   },
-  storyEmojiLarge: { 
-    fontSize: 32, // Smaller emoji to fit circle
-  },
-  storyInfo: { 
-    flex: 1, 
-    justifyContent: 'center',
-  },
-  storyTitle: { 
-    fontWeight: '600', // Semi-bold
-    marginBottom: 4, // Tighter spacing
+  storyTitle: {
+    fontWeight: '600',
+    marginBottom: 4,
   },
   storyDescription: {
-    marginBottom: 8, // Make space for the pill
-  },
-  completionBadge: { 
-    position: 'absolute', 
-    right: 16, 
-    top: 0, // Center vertically
-    bottom: 0, // Center vertically
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  loadingContainer: { 
-    flex: 1, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-  },
-  loadingText: { 
-    marginTop: 12,
-  },
-  emptyContainer: { 
-    flex: 1, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    padding: 24,
-    marginTop: -60, // Adjust vertical centering
-  },
-  emptyTitle: { 
-    fontWeight: '600', // Semi-bold
     marginBottom: 8,
-  },
-  emptySubtitle: { 
-    textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 18, // Improve readability
   },
   difficultyLabel: {
-    // No longer absolute positioning
-    alignSelf: 'flex-start', // Don't stretch
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 999, // Pill shape
+    borderRadius: 999,
   },
   difficultyLabelText: {
-    color: '#FFFFFF', // Always white text on colored bg
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold',
   },
-  divider: {
-    height: 1,
-    marginVertical: 24,
-    marginHorizontal: 8,
+  completionBadge: {
+    marginLeft: 8, // Space it slightly from the text content
+    alignSelf: 'center', // Center vertically within the row
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+  },
+  emptyContainer: {
+    flex: 1, // Take up available space
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    marginTop: -60, // Adjust vertical position if needed
+  },
+  emptyTitle: {
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
 
