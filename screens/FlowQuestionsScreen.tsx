@@ -27,7 +27,8 @@ type Option = { text: string; emoji: string; correct: boolean };
 
 // Define the Y positions for the animation
 const QUESTION_Y_POSITION = 0;
-const NEXT_PREVIEW_Y_POSITION = 270; // Adjust if needed based on layout
+// Increased distance for the next preview to start lower
+const NEXT_PREVIEW_Y_START_POSITION = 350; // NEW: Renamed and increased value
 const QUESTION_Y_END_POSITION = -150;
 
 const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
@@ -45,7 +46,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const { getFontSizeMultiplier } = useFontSize();
   const { setHasNewWords } = useNotification(); // Use notification context
 
-  const [currentIndex, setCurrentIndex] = useState(Math.max(0, Math.min(startIndex, (chapter.questions?.length || 1) - 1))); // Safer check for questions length
+  const [currentIndex, setCurrentIndex] = useState(Math.max(0, Math.min(startIndex, (chapter.questions?.length || 1) - 1)));
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
   const [selectedIdx, setSelectedIdx] = useState<Record<string, number>>({});
@@ -156,21 +157,16 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         if (isAlreadyAdded) {
             // Remove word
             updatedUserWordsList = userWords.filter((w: any) => w.word !== word);
-            // Update selectedVocabWords state if it was selected in this session
             setSelectedVocabWords(prev => prev.filter(w => w !== word));
             console.log(`Word removed: ${word}`);
         } else {
             // Add word
-            const newWordEntry = {
-                ...wordDetails, // Use the full details passed in
-                addedAt: Date.now(),
-                nextReview: Date.now() + (24 * 60 * 60 * 1000), // Default review in 1 day
-                reviewCount: 0, intervalIndex: 0, lastReviewed: Date.now(),
-                easeFactor: 2.5, consecutiveCorrect: 0, totalCorrect: 0,
-                totalIncorrect: 0, masteryLevel: 'new' as const,
+            const newWordEntry = { /* ... word entry data ... */
+                ...wordDetails, addedAt: Date.now(), nextReview: Date.now() + (24 * 60 * 60 * 1000),
+                reviewCount: 0, intervalIndex: 0, lastReviewed: Date.now(), easeFactor: 2.5,
+                consecutiveCorrect: 0, totalCorrect: 0, totalIncorrect: 0, masteryLevel: 'new' as const,
             };
             updatedUserWordsList = [...userWords, newWordEntry];
-            // Add to session selection state
             setSelectedVocabWords(prev => [...prev, word]);
             newlyAdded = true;
             console.log(`Word added: ${word}`);
@@ -181,19 +177,15 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         batch.update(userRef, { myWords: updatedUserWordsList });
         await batch.commit();
 
-        // Update local state IMMEDIATELY for UI responsiveness
+        // Update local state IMMEDIATELY
         setUserWords(updatedUserWordsList);
 
-        // Set notification flag if a new word was added
         if (newlyAdded) {
             setHasNewWords(true);
             console.log("New word added, setting notification flag.");
         }
 
-    } catch (e) {
-        console.error('Failed to toggle vocabulary word:', e);
-        Alert.alert("Error", "Could not update your word list. Please try again.");
-    }
+    } catch (e) { console.error('Failed to toggle vocabulary word:', e); Alert.alert("Error", "Could not update your word list."); }
 };
 
 
@@ -220,29 +212,24 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
   ].filter(opt => (opt.text || '').trim().length > 0);
 
   const getOptionsForQuestion = (q: FlowQuestion): Option[] => {
-    if (!q) return []; // Handle case where question might be undefined briefly
+    if (!q) return [];
     if (shuffledById[q.id]) return shuffledById[q.id];
     const base = buildOptions(q);
     const shuffled = [...base].sort(() => Math.random() - 0.5);
-    // Use functional update to avoid potential race conditions if called rapidly
     setShuffledById(prev => ({ ...prev, [q.id]: shuffled }));
+    // console.log(`Options generated for ${q.id}:`, shuffled.length); // DEBUG
     return shuffled;
   };
 
   // Persist the index of the *last successfully viewed* question
   const persistLastIndex = async (index: number) => {
-    if (index < 0 || index >= totalQuestions) return; // Basic validation
+    if (index < 0 || index >= totalQuestions) return;
     try {
       const user = auth.currentUser;
       if (!user) return;
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        [`progress.flow_${storyId}_${chapter.id}_lastIndex`]: index
-      });
-       // console.log(`Persisted lastIndex: ${index}`);
-    } catch (e) {
-      console.error('Failed saving lastIndex', e);
-    }
+      await updateDoc(userRef, { [`progress.flow_${storyId}_${chapter.id}_lastIndex`]: index });
+    } catch (e) { console.error('Failed saving lastIndex', e); }
   };
 
   // Remove progress for the current chapter
@@ -255,9 +242,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         if (userSnap.exists()) {
             const currentProgress = userSnap.data().progress || {};
             const newProgress = Object.keys(currentProgress).reduce((acc, key) => {
-                if (!key.startsWith(`flow_${storyId}_${chapter.id}_`)) {
-                    acc[key] = currentProgress[key];
-                }
+                if (!key.startsWith(`flow_${storyId}_${chapter.id}_`)) { acc[key] = currentProgress[key]; }
                 return acc;
             }, {} as Record<string, any>);
             await updateDoc(userRef, { progress: newProgress });
@@ -269,15 +254,13 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
   // Persist the final percentage score for the chapter
   const persistProgress = async (finalScore: number) => {
-     if (totalQuestions <= 0) return; // Avoid division by zero
+     if (totalQuestions <= 0) return;
     try {
       const user = auth.currentUser;
       if (!user) return;
       const userRef = doc(db, 'users', user.uid);
       const percentage = Math.round((finalScore / totalQuestions) * 100);
-      await updateDoc(userRef, {
-         [`progress.flow_${storyId}_${chapter.id}_percentage`]: percentage,
-      });
+      await updateDoc(userRef, { [`progress.flow_${storyId}_${chapter.id}_percentage`]: percentage });
       console.log(`Persisted final score percentage: ${percentage}%`);
     } catch (e) { console.error('Failed saving final progress', e); }
   };
@@ -303,7 +286,6 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
           style: 'destructive',
           onPress: async () => {
             setCurrentRoute?.('FlowStoryScreen');
-            // Go back to the Detail screen
             navigation.navigate('FlowDetailScreen', { storyId });
           }
         },
@@ -314,7 +296,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
    // Handle selecting an answer
   const handleSelect = async (q: FlowQuestion, optIsCorrect: boolean, optionIndex: number) => {
-    if (!q || answered[q.id] !== undefined || showCompletion) return; // Extra check for q
+    if (!q || answered[q.id] !== undefined || showCompletion) return;
 
     setSelectedIdx(prev => ({ ...prev, [q.id]: optionIndex }));
     setAnswered(prev => ({ ...prev, [q.id]: optIsCorrect }));
@@ -332,13 +314,13 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
             persistProgress(newScore);
         } else {
             Animated.timing(transitionAnim, {
-                toValue: 1, duration: 600, useNativeDriver: false, // Keep false for non-native props
+                toValue: 1, duration: 600, useNativeDriver: false,
             }).start(() => {
                 const nextIdx = currentIndex + 1;
                 setCurrentIndex(nextIdx);
                 persistLastIndex(nextIdx);
-                transitionAnim.setValue(0); // Reset instantly
-                optionsOpacity.setValue(0); // Prepare options fade in
+                transitionAnim.setValue(0);
+                optionsOpacity.setValue(0);
                 Animated.timing(optionsOpacity, {
                     toValue: 1, duration: 400, useNativeDriver: true,
                 }).start();
@@ -349,8 +331,8 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
 
 
-  const current = chapter.questions?.[currentIndex]; // Safer access
-  const next = chapter.questions?.[currentIndex + 1]; // Safer access
+  const current = chapter.questions?.[currentIndex];
+  const next = chapter.questions?.[currentIndex + 1];
 
   // Configure header
   useEffect(() => {
@@ -383,9 +365,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
           if (currentChapterIndexInFullList >= 0 && currentChapterIndexInFullList + 1 < activeChapters.length) {
             setNextChapter(activeChapters[currentChapterIndexInFullList + 1]);
             setNextIndex(currentChapterIndexInFullList + 1);
-          } else {
-            setNextChapter(null); setNextIndex(null);
-          }
+          } else { setNextChapter(null); setNextIndex(null); }
         }
       } catch (error) { console.error("Error loading next chapter details:", error); setNextChapter(null); setNextIndex(null); }
     };
@@ -393,151 +373,63 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
   }, [showCompletion, storyId, chapter.id]);
 
 
-  // --- Feedback Modals Rendering (Unchanged) ---
+  // --- Feedback Modals Rendering (Unchanged from previous version) ---
     if (showCompletion) {
         const passed = successRate >= 70;
 
-        if (feedbackStep === 'score') {
+        if (feedbackStep === 'score') { /* ... Score modal ... */
             return (
                 <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-                <View style={styles.contentWrapper}>
-                    <View style={styles.completionContainer}>
-                    <View style={[styles.completionCard, { backgroundColor: theme.cardColor }]}>
-                        <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Chapter Complete! 🎉</Text>
-                        <Text style={[styles.scoreLine, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>Your Score: {score} / {totalQuestions} ({successRate}%)</Text>
-                        <Text style={{ color: passed ? theme.success : theme.error, fontWeight: 'bold', marginTop: 12, fontSize: getScaledFontSize(16), textAlign: 'center' }}>{passed ? '✅ PASSED' : '❌ FAILED'}</Text>
-                        <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary, marginTop: 24 }]} onPress={() => setFeedbackStep('vocabulary')}>
-                        <Text style={styles.actionButtonTextPrimary}>Next</Text>
-                        </TouchableOpacity>
-                    </View>
-                    </View>
-                </View>
-                </View>
+                <View style={styles.contentWrapper}> <View style={styles.completionContainer}>
+                <View style={[styles.completionCard, { backgroundColor: theme.cardColor }]}>
+                <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Chapter Complete! 🎉</Text>
+                <Text style={[styles.scoreLine, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>Your Score: {score} / {totalQuestions} ({successRate}%)</Text>
+                <Text style={{ color: passed ? theme.success : theme.error, fontWeight: 'bold', marginTop: 12, fontSize: getScaledFontSize(16), textAlign: 'center' }}>{passed ? '✅ PASSED' : '❌ FAILED'}</Text>
+                <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary, marginTop: 24 }]} onPress={() => setFeedbackStep('vocabulary')}>
+                <Text style={styles.actionButtonTextPrimary}>Next</Text>
+                </TouchableOpacity>
+                </View></View></View></View>
             );
         }
-
-       if (feedbackStep === 'vocabulary') {
+       if (feedbackStep === 'vocabulary') { /* ... Vocabulary modal ... */
         return (
             <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-            <View style={styles.contentWrapper}>
-                <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {/* Use a standard View instead of completionCard if padding: 0 causes issues */}
-                <View style={[styles.completionCard, { backgroundColor: theme.cardColor, padding: 0, overflow: 'hidden' }]}>
-                    <View style={{ padding: 24, paddingBottom: 16 }}>
-                    <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(26) }]}>New Vocabulary 📚</Text>
-                    <Text style={[styles.scoreLine, { color: theme.secondaryText, marginBottom: 16, fontSize: getScaledFontSize(16) }]}>Tap words to add them to your practice list.</Text>
-                    </View>
-
-                    {chapterVocabulary.length > 0 ? (
-                    <View style={styles.vocabList}>
-                        {chapterVocabulary.map((vocabItem, index) => {
-                            const isSaved = isVocabWordSaved(vocabItem.word); // Check if already saved
-                            return (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={[
-                                        styles.vocabItem,
-                                        {
-                                            backgroundColor: isSaved ? theme.success + '20' : theme.surfaceColor,
-                                            borderColor: isSaved ? theme.success : theme.borderColor,
-                                        }
-                                    ]}
-                                    onPress={() => handleVocabToggle(vocabItem)} // Pass full item
-                                >
-                                <View style={styles.vocabHeader}>
-                                    <Text style={[ styles.vocabWord, { color: isSaved ? theme.success : theme.primaryText, fontSize: getScaledFontSize(18) }]}>
-                                        {vocabItem.word}
-                                    </Text>
-                                    <Text style={[ styles.vocabType, { color: isSaved ? theme.success : theme.secondaryText, fontSize: getScaledFontSize(14) }]}>
-                                        {vocabItem.type}
-                                    </Text>
-                                </View>
-                                <Text style={[ styles.vocabDefinition, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>
-                                    {vocabItem.definition}
-                                </Text>
-                                {vocabItem.equivalent && (
-                                    <Text style={[ styles.vocabEquivalent, { color: theme.accentText, fontSize: getScaledFontSize(14) } ]}>
-                                        {vocabItem.equivalent}
-                                    </Text>
-                                )}
-                                <View style={styles.vocabStatus}>
-                                    <Text style={[ styles.vocabStatusText, { color: isSaved ? theme.success : theme.primary, fontSize: getScaledFontSize(14) } ]}>
-                                        {isSaved ? '✓ Added' : 'Tap to add'}
-                                    </Text>
-                                </View>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-                    ) : (
-                    <Text style={[styles.scoreLine, { color: theme.secondaryText, textAlign: 'center', paddingBottom: 24, fontSize: getScaledFontSize(16) }]}>
-                        No new vocabulary in this chapter.
-                    </Text>
-                    )}
-
-                    {/* Footer with Next button */}
-                    <View style={{ padding: 24, borderTopWidth: 1, borderColor: theme.borderColor, backgroundColor: theme.cardColor }}>
-                        <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary }]} onPress={() => setFeedbackStep('congrats')}>
-                            <Text style={styles.actionButtonTextPrimary}>Continue</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-                </ScrollView>
+            <View style={styles.contentWrapper}> <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+            <View style={[styles.completionCard, { backgroundColor: theme.cardColor, padding: 0, overflow: 'hidden' }]}>
+            <View style={{ padding: 24, paddingBottom: 16 }}>
+            <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(26) }]}>New Vocabulary 📚</Text>
+            <Text style={[styles.scoreLine, { color: theme.secondaryText, marginBottom: 16, fontSize: getScaledFontSize(16) }]}>Tap words to add them to your practice list.</Text>
             </View>
-            </View>
+            {chapterVocabulary.length > 0 ? ( <View style={styles.vocabList}>
+            {chapterVocabulary.map((vocabItem, index) => { const isSaved = isVocabWordSaved(vocabItem.word); return (
+            <TouchableOpacity key={index} style={[ styles.vocabItem, { backgroundColor: isSaved ? theme.success + '20' : theme.surfaceColor, borderColor: isSaved ? theme.success : theme.borderColor, }]} onPress={() => handleVocabToggle(vocabItem)} >
+            <View style={styles.vocabHeader}><Text style={[ styles.vocabWord, { color: isSaved ? theme.success : theme.primaryText, fontSize: getScaledFontSize(18) }]}>{vocabItem.word}</Text><Text style={[ styles.vocabType, { color: isSaved ? theme.success : theme.secondaryText, fontSize: getScaledFontSize(14) }]}>{vocabItem.type}</Text></View>
+            <Text style={[ styles.vocabDefinition, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>{vocabItem.definition}</Text>
+            {vocabItem.equivalent && (<Text style={[ styles.vocabEquivalent, { color: theme.accentText, fontSize: getScaledFontSize(14) } ]}>{vocabItem.equivalent}</Text>)}
+            <View style={styles.vocabStatus}><Text style={[ styles.vocabStatusText, { color: isSaved ? theme.success : theme.primary, fontSize: getScaledFontSize(14) } ]}>{isSaved ? '✓ Added' : 'Tap to add'}</Text></View>
+            </TouchableOpacity> ); })} </View>
+            ) : ( <Text style={[styles.scoreLine, { color: theme.secondaryText, textAlign: 'center', paddingBottom: 24, fontSize: getScaledFontSize(16) }]}> No new vocabulary in this chapter. </Text> )}
+            <View style={{ padding: 24, borderTopWidth: 1, borderColor: theme.borderColor, backgroundColor: theme.cardColor }}>
+            <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary }]} onPress={() => setFeedbackStep('congrats')}>
+            <Text style={styles.actionButtonTextPrimary}>Continue</Text>
+            </TouchableOpacity></View></View></ScrollView></View></View>
         );
-    }
-
-
-        if (feedbackStep === 'congrats') {
+       }
+        if (feedbackStep === 'congrats') { /* ... Congrats modal ... */
             return (
                 <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-                <View style={styles.contentWrapper}>
-                    <View style={styles.completionContainer}>
-                    <View style={[styles.completionCard, { backgroundColor: theme.cardColor }]}>
-                        <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Congratulations! 🎊</Text>
-                        <Text style={[styles.scoreLine, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>You've completed the chapter!</Text>
-                         <Text style={{ color: theme.secondaryText, textAlign: 'center', marginTop: 12, fontSize: getScaledFontSize(16), lineHeight: 22 }}>
-                            {selectedVocabWords.length > 0
-                                ? `You added ${selectedVocabWords.length} new word${selectedVocabWords.length > 1 ? 's' : ''} to your practice list.`
-                                : 'Keep playing to learn more words!'
-                            }
-                        </Text>
-
-                        {nextChapter && (
-                        <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary, marginTop: 24 }]} onPress={async () => {
-                           if (!isPro && (nextIndex ?? 0) >= 3) {
-                                return Alert.alert( 'Get Pro to Continue', 'Chapters 4+ require Pro.', [ { text: 'Not now', style: 'cancel' }, { text: 'Buy Pro', onPress: () => navigation.navigate('Settings', { screen: 'Settings' }) } ]);
-                           }
-                            navigation.replace('FlowChapterIntroScreen', { storyId, chapter: nextChapter, storyTitle: '', startIndex: 0 });
-                        }}>
-                            <Text style={styles.actionButtonTextPrimary}>Go to Next Chapter</Text>
-                        </TouchableOpacity>
-                        )}
-
-                        <TouchableOpacity style={[styles.actionButtonSecondary, { backgroundColor: theme.surfaceColor, marginTop: 12 }]} onPress={() => navigation.navigate('FlowDetailScreen', { storyId })}>
-                            <Text style={[styles.actionButtonTextSecondary, { color: theme.primaryText }]}>Back to Story Chapters</Text>
-                        </TouchableOpacity>
-
-                        {/* Show Retry only if failed */}
-                        {!passed && (
-                             <TouchableOpacity style={[styles.actionButtonTertiary, { borderColor: theme.secondaryText, marginTop: 12 }]} onPress={() => {
-                                 // Reset state for retry
-                                 setCurrentIndex(0); setScore(0); setAnswered({}); setSelectedIdx({});
-                                 setShowCompletion(false); setFeedbackStep('score');
-                                 setSelectedVocabWords([]); // Reset session vocab
-                             }}>
-                                <Text style={[styles.actionButtonTextTertiary, { color: theme.secondaryText }]}>Retry Chapter</Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                    </View>
-                </View>
-                </View>
+                <View style={styles.contentWrapper}><View style={styles.completionContainer}>
+                <View style={[styles.completionCard, { backgroundColor: theme.cardColor }]}>
+                <Text style={[styles.completionTitle, { color: theme.primaryText, fontSize: getScaledFontSize(28) }]}>Congratulations! 🎊</Text>
+                <Text style={[styles.scoreLine, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>You've completed the chapter!</Text>
+                <Text style={{ color: theme.secondaryText, textAlign: 'center', marginTop: 12, fontSize: getScaledFontSize(16), lineHeight: 22 }}> {selectedVocabWords.length > 0 ? `You added ${selectedVocabWords.length} new word${selectedVocabWords.length > 1 ? 's' : ''} to your practice list.` : 'Keep playing to learn more words!'} </Text>
+                {nextChapter && ( <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary, marginTop: 24 }]} onPress={async () => { if (!isPro && (nextIndex ?? 0) >= 3) { return Alert.alert( 'Get Pro to Continue', 'Chapters 4+ require Pro.', [ { text: 'Not now', style: 'cancel' }, { text: 'Buy Pro', onPress: () => navigation.navigate('Settings', { screen: 'Settings' }) } ]); } navigation.replace('FlowChapterIntroScreen', { storyId, chapter: nextChapter, storyTitle: '', startIndex: 0 }); }}> <Text style={styles.actionButtonTextPrimary}>Go to Next Chapter</Text> </TouchableOpacity> )}
+                <TouchableOpacity style={[styles.actionButtonSecondary, { backgroundColor: theme.surfaceColor, marginTop: 12 }]} onPress={() => navigation.navigate('FlowDetailScreen', { storyId })}> <Text style={[styles.actionButtonTextSecondary, { color: theme.primaryText }]}>Back to Story Chapters</Text> </TouchableOpacity>
+                {!passed && ( <TouchableOpacity style={[styles.actionButtonTertiary, { borderColor: theme.secondaryText, marginTop: 12 }]} onPress={() => { setCurrentIndex(0); setScore(0); setAnswered({}); setSelectedIdx({}); setShowCompletion(false); setFeedbackStep('score'); setSelectedVocabWords([]); }}> <Text style={[styles.actionButtonTextTertiary, { color: theme.secondaryText }]}>Retry Chapter</Text> </TouchableOpacity> )}
+                </View></View></View></View>
             );
         }
-
-        return null; // Should not be reached
+        return null;
     }
   // --- End of feedback modal rendering ---
 
@@ -547,27 +439,24 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const isCurrentAnswered = answered[current?.id] !== undefined;
   const currentSelectedIdx = selectedIdx[current?.id];
 
-  // 1. Current Question Animation (Slides up and fades out)
   const currentQuestionAnimStyle = {
     opacity: transitionAnim.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: 'clamp' }),
     transform: [{ translateY: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [QUESTION_Y_POSITION, QUESTION_Y_END_POSITION], extrapolate: 'clamp' }) }],
+    zIndex: 10, // FIX: Ensure current question is temporarily above next preview
   };
 
-  // 2. Next Question (Preview) Animation (Slides up from bottom, transforms)
   const nextPreviewAnimStyle = {
-    opacity: transitionAnim.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 1], extrapolate: 'clamp' }), // Fade in quickly, stay visible
-    transform: [{ translateY: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [NEXT_PREVIEW_Y_POSITION, QUESTION_Y_POSITION], extrapolate: 'clamp' }) }],
-    backgroundColor: transitionAnim.interpolate({ inputRange: [0, 0.8, 1], outputRange: [theme.surfaceColor, theme.surfaceColor, 'transparent'] }), // Fades background
+    opacity: transitionAnim.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 1], extrapolate: 'clamp' }),
+    transform: [{ translateY: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [NEXT_PREVIEW_Y_START_POSITION, QUESTION_Y_POSITION], extrapolate: 'clamp' }) }], // Start lower
+    backgroundColor: transitionAnim.interpolate({ inputRange: [0, 0.8, 1], outputRange: [theme.surfaceColor, theme.surfaceColor, 'transparent'] }),
+    zIndex: 5, // FIX: Ensure next preview is below current question initially
   };
-  // 3. Next Question's *Label* ("Next") - Fades out quickly
   const nextLabelAnimStyle = { opacity: transitionAnim.interpolate({ inputRange: [0, 0.3], outputRange: [1, 0], extrapolate: 'clamp' }) };
-  // 4. Next Question's *Text* - Transforms style
   const nextTextAnimStyle = {
     color: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [theme.secondaryText, theme.primaryText] }),
     fontSize: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [getScaledFontSize(16), getScaledFontSize(22)] }),
     fontWeight: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: ['400', '600'] } as any),
-    // REMOVED fontStyle interpolation causing the error
-    // fontStyle: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: ['italic', 'normal'] }),
+    // fontStyle removed
   };
   // --- End of animation style definitions ---
 
@@ -586,7 +475,6 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
                 <Text style={[styles.scoreText, { color: theme.primary, fontSize: getScaledFontSize(16), fontWeight: 'bold' }]}>{score} correct</Text>
               </View>
               <View style={[styles.progressBar, { backgroundColor: theme.surfaceColor }]}>
-                {/* Use Animated.View for progress fill if you want it animated */}
                 <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${progressPct}%` }]} />
               </View>
             </View>
@@ -610,14 +498,12 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
                       if (isCurrentAnswered) {
                         if (opt.correct) {
-                            buttonStyle = { backgroundColor: theme.success + '20', borderColor: theme.success };
-                            textStyle = { color: theme.success };
+                            buttonStyle = { backgroundColor: theme.success + '20', borderColor: theme.success }; textStyle = { color: theme.success };
                             iconName = 'checkmark-circle'; iconColor = theme.success;
                         } else if (currentSelectedIdx === i && !opt.correct) {
-                            buttonStyle = { backgroundColor: theme.error + '20', borderColor: theme.error };
-                            textStyle = { color: theme.error };
+                            buttonStyle = { backgroundColor: theme.error + '20', borderColor: theme.error }; textStyle = { color: theme.error };
                             iconName = 'close-circle'; iconColor = theme.error;
-                        } else { buttonStyle.opacity = 0.6; } // Dim others
+                        } else { buttonStyle.opacity = 0.6; }
                       }
 
                       return (
@@ -658,14 +544,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center' },
   contentWrapper: { flex: 1, width: '100%', maxWidth: 800 },
   scrollView: { flex: 1 },
-  content: { padding: 16, paddingBottom: 40 }, // Added paddingBottom
+  content: { padding: 16, paddingBottom: 40 },
   progressContainer: { marginBottom: 12, paddingHorizontal: 4 },
   progressHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   progressText: { fontWeight: '600' },
   progressBar: { height: 16, borderRadius: 999, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 999 },
-  // Animation container needs enough height to contain both elements during transition
-  animationContainer: { position: 'relative', minHeight: 450, marginBottom: 20 }, // Increased minHeight
+  // FIX: Increased minHeight to ensure preview is visible
+  animationContainer: { position: 'relative', minHeight: 600, marginBottom: 20 },
   questionContainer: { marginVertical: 24, paddingHorizontal: 8, minHeight: 80, justifyContent: 'center' },
   npcSentence: { fontWeight: '600', textAlign: 'center', lineHeight: 30 },
   optionsContainer: { gap: 12, marginTop: 16 },
@@ -675,18 +561,16 @@ const styles = StyleSheet.create({
   scoreBox: { alignItems: 'center', paddingVertical: 12 },
   scoreText: { fontWeight: '600' },
   nextPreviewContainer: {
-    position: 'absolute', // Key for layering
-    left: 16, right: 16, // Match content padding
-    top: 0, // Starts aligned with the top of animation container
-    // Removed marginTop, position controlled by transform
+    position: 'absolute', left: 16, right: 16, top: 0, // Keep top: 0
+    // marginTop removed, position controlled by transform
     padding: 16, borderRadius: 16,
     // Background color and opacity controlled by animation
+    // zIndex set in animation style
   },
   nextPreviewLabel: { textTransform: 'uppercase', fontWeight: 'bold', marginBottom: 8 },
   nextPreviewText: {
      fontStyle: 'italic', // Apply italic statically
-     textAlign: 'center', // Center text as it transforms
-     lineHeight: 30, // Match npcSentence lineHeight
+     textAlign: 'center', lineHeight: 30, // Match npcSentence
      // color, fontSize, fontWeight controlled by animation
   },
   completionContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 20 },
@@ -699,7 +583,7 @@ const styles = StyleSheet.create({
   actionButtonTextSecondary: { fontWeight: 'bold', fontSize: 16 },
   actionButtonTertiary: { padding: 14, borderRadius: 999, alignItems: 'center', marginTop: 12, borderWidth: 1.5 },
   actionButtonTextTertiary: { fontWeight: 'bold', fontSize: 16 },
-  vocabList: { paddingHorizontal: 16, paddingBottom: 20, maxHeight: 400 }, // Added maxHeight
+  vocabList: { paddingHorizontal: 16, paddingBottom: 20, maxHeight: 400 },
   vocabItem: { borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1.5 },
   vocabHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   vocabWord: { fontSize: 18, fontWeight: 'bold', flex: 1 },
@@ -709,7 +593,7 @@ const styles = StyleSheet.create({
   vocabStatus: { marginTop: 12, alignItems: 'flex-start' },
   vocabStatusText: { fontSize: 14, fontWeight: '600' },
   headerBackButton: { paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center' },
-  headerBackText: { fontSize: 16, marginLeft: 6 }, // Removed static color
+  headerBackText: { fontSize: 16, marginLeft: 6 },
 });
 
 export default FlowQuestionsScreen;
