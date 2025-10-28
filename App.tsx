@@ -1,17 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-// NEW: Import useNavigationContainerRef
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-// NEW: Import ReactGA and useRef
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Platform, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native'; // Added StyleSheet
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ReactGA from "react-ga4"; // NEW: Import react-ga4
+import ReactGA from "react-ga4";
 import { auth, db } from './firebase';
 import { FontSizeProvider, useFontSize } from './FontSizeContext';
+import { NotificationProvider, useNotification } from './NotificationContext'; // Import NotificationProvider & useNotification
 import AdminPanelScreen from './screens/AdminPanelScreen';
 import ChapterQuestionsScreen from './screens/ChapterQuestionsScreen';
 import DeleteAccountScreen from './screens/DeleteAccountScreen';
@@ -33,10 +32,8 @@ import VocabularyScreen from './screens/VocabularyScreen';
 import WebAdminPanel from './screens/WebAdminPanel';
 import { ThemeProvider, useTheme } from './ThemeContext';
 
-// --- NEW: Initialize Google Analytics ---
-// REPLACE 'G-XPELZS8ZMT' with your actual Measurement ID if different
-const GA_MEASUREMENT_ID = "G-XPELZS8ZMT";
-// Only initialize GA on the web platform
+// --- Initialize Google Analytics ---
+const GA_MEASUREMENT_ID = "G-XPELZS8ZMT"; // Replace if needed
 if (Platform.OS === 'web') {
   try {
     ReactGA.initialize(GA_MEASUREMENT_ID);
@@ -45,7 +42,13 @@ if (Platform.OS === 'web') {
     console.error("Error initializing GA:", error);
   }
 }
-// --- END NEW ---
+// --- END GA ---
+
+// Define WordWithSpacedRepetition interface if not imported
+interface WordWithSpacedRepetition {
+    word: string;
+    // ... add other properties as needed
+}
 
 type RootStackParamList = {
   Words: undefined;
@@ -68,9 +71,8 @@ type RootStackParamList = {
   Settings: undefined;
   Profile: undefined;
   DeleteAccount: undefined;
-  // Added missing navigation stack types based on usage
   VocabularyScreen: undefined;
-  Practice: { words: WordWithSpacedRepetition[]; startIndex: number } | undefined; // Assuming PracticeScreen needs params
+  Practice: { words: WordWithSpacedRepetition[]; startIndex: number } | undefined;
   EmojiStoryScreen: undefined;
   Messages: undefined;
   FlowStoryScreen: undefined;
@@ -78,21 +80,14 @@ type RootStackParamList = {
   FlowChapterIntroScreen: { storyId: string; chapter: any; storyTitle: string; startIndex: number };
   FlowQuestionsScreen: { storyId: string; chapter: any; startIndex: number };
   FlowAdminPanel: undefined;
-  Story: undefined; // For the tab name
+  Story: undefined;
 };
-
-// Define WordWithSpacedRepetition interface if not imported
-interface WordWithSpacedRepetition {
-    word: string;
-    // ... add other properties as needed
-}
 
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
-// --- Keep your Stack Screens (WordsStackScreen, EmojiStoryStackScreen, SettingsStackScreen, FlowStackScreen) exactly as they are ---
-
+// --- Stack Screens (Keep as they are) ---
 const WordsStack = createNativeStackNavigator();
 const WordsStackScreen = ({ wordCount, setWordCount, setCurrentRoute, triggerWordsTabAnimation }: { wordCount: number; setWordCount: (n: number) => void; setCurrentRoute: (route: string) => void; triggerWordsTabAnimation: () => void }) => {
   const { theme } = useTheme();
@@ -320,7 +315,6 @@ const FlowStackScreen = ({ setCurrentRoute }: { setCurrentRoute: (route: string)
           headerBackTitle: "Stories",
         }}
       />
-      {/* Assuming Messages screen can be accessed from Flow Admin as well */}
       <FlowStack.Screen
         name="Messages"
         component={MessagesScreen}
@@ -332,6 +326,7 @@ const FlowStackScreen = ({ setCurrentRoute }: { setCurrentRoute: (route: string)
     </FlowStack.Navigator>
   );
 };
+// --- End Stack Screens ---
 
 
 function AppContent() {
@@ -343,56 +338,39 @@ function AppContent() {
   const { theme } = useTheme();
   const { getFontSizeMultiplier } = useFontSize();
 
-  // --- NEW: Navigation tracking setup ---
+  // --- Navigation tracking setup ---
   const navigationRef = useNavigationContainerRef();
   const routeNameRef = useRef<string | null>(null);
 
   const handleReady = () => {
-    // Only track if on web
     if (Platform.OS !== 'web') return;
-
-    // Get the initial route name
     routeNameRef.current = navigationRef.getCurrentRoute()?.name || null;
     if (routeNameRef.current) {
-        // Send initial page view
         try {
             const initialPath = window.location.pathname + window.location.search;
             ReactGA.send({ hitType: "pageview", page: initialPath, title: routeNameRef.current });
             console.log("Initial GA Pageview:", routeNameRef.current, "Path:", initialPath);
-        } catch (error) {
-            console.error("Error sending initial GA pageview:", error);
-        }
+        } catch (error) { console.error("Error sending initial GA pageview:", error); }
     }
   };
 
   const handleStateChange = async () => {
-    // Only track if on web
     if (Platform.OS !== 'web') return;
-
     const previousRouteName = routeNameRef.current;
-    const currentRoute = navigationRef.getCurrentRoute(); // Get the full route object
+    const currentRoute = navigationRef.getCurrentRoute();
     const currentRouteName = currentRoute?.name || null;
-
     if (previousRouteName !== currentRouteName && currentRouteName) {
-      // The screen has changed, send a pageview event
       try {
-          // Use window.location.pathname for a more accurate path on web
           const currentPagePath = window.location.pathname + window.location.search;
           ReactGA.send({ hitType: "pageview", page: currentPagePath, title: currentRouteName });
           console.log("GA Pageview Sent:", currentRouteName, "Path:", currentPagePath);
-      } catch(error) {
-          console.error("Error sending GA pageview:", error);
-      }
+      } catch(error) { console.error("Error sending GA pageview:", error); }
     }
-
-    // Save the current route name for next comparison
     routeNameRef.current = currentRouteName;
   };
-  // --- END NEW ---
-
+  // --- END GA ---
 
   const getScaledFontSize = (baseSize: number) => {
-    // FIX from previous step included here
     const multiplier = getFontSizeMultiplier();
     const result = Math.round(baseSize * (multiplier || 1));
     return isNaN(result) ? baseSize : result;
@@ -404,10 +382,7 @@ function AppContent() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (user) => { setUser(user); setLoading(false); });
     return unsubscribe;
   }, []);
 
@@ -418,101 +393,81 @@ function AppContent() {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
-          const words = data.myWords || [];
-          setWordCount(words.length);
+          setWordCount((data.myWords || []).length);
         }
-      } catch (error) {
-        console.error('Error fetching word count:', error);
-      }
+      } catch (error) { console.error('Error fetching word count:', error); }
     };
     fetchCount();
   }, [user]);
 
+  // --- UPDATED CustomTabBar ---
   function CustomTabBar({ state, descriptors, navigation }: any) {
     const insets = useSafeAreaInsets();
+    const { hasNewWords } = useNotification(); // Get notification state
+    const { theme } = useTheme();
+    const { getFontSizeMultiplier } = useFontSize();
+
+    const getScaledFontSize = (baseSize: number) => {
+        const multiplier = getFontSizeMultiplier() || 1;
+        return Math.round(baseSize * multiplier);
+    };
+
     const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
       Story: 'library',
       Words: 'book',
       Settings: 'settings',
     };
 
-    const currentTabRoute = state.routes[state.index];
-    const nestedState: any = (currentTabRoute as any).state;
-    const focusedNestedName = nestedState?.routes?.[nestedState.index]?.name;
-    const currentRouteName = currentTabRoute.name;
-    // Determine if we are on a questions screen within the Flow stack
-    const isInQuestionsScreen = (currentRouteName === 'Story' && focusedNestedName === 'FlowQuestionsScreen');
-
     const rootScreensByTab: Record<string, string> = {
       Story: 'FlowStoryScreen',
       Words: 'VocabularyScreen',
       Settings: 'Settings',
     };
-
     const bottomInset = insets?.bottom || 0;
     const visibleHeight = 52 + bottomInset + 2;
-    const shouldHide = false; // Keep tab bar always visible for now
+    const shouldHide = false; // Keep visible
 
     return (
       <View style={{
-        flexDirection: 'row',
-        backgroundColor: theme.backgroundColor,
-        borderTopWidth: shouldHide ? 0 : 1,
-        borderTopColor: theme.dividerColor,
-        paddingBottom: shouldHide ? 0 : bottomInset,
-        paddingTop: shouldHide ? 0 : 2,
+        flexDirection: 'row', backgroundColor: theme.backgroundColor,
+        borderTopWidth: shouldHide ? 0 : 1, borderTopColor: theme.dividerColor,
+        paddingBottom: shouldHide ? 0 : bottomInset, paddingTop: shouldHide ? 0 : 2,
         height: shouldHide ? 0 : visibleHeight,
-        overflow: 'hidden',
-        opacity: shouldHide ? 0 : 1,
-        pointerEvents: shouldHide ? 'none' as const : 'auto' as const
+        overflow: 'hidden', opacity: shouldHide ? 0 : 1,
+        pointerEvents: shouldHide ? 'none' : 'auto'
       }}>
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
-          const label = options.tabBarLabel !== undefined
-            ? options.tabBarLabel
-            : options.title !== undefined
-            ? options.title
-            : route.name;
+          const label = options.tabBarLabel ?? options.title ?? route.name;
           const isFocused = state.index === index;
           const isWordsTab = route.name === 'Words';
+          const showNotification = isWordsTab && hasNewWords;
 
           const onPress = () => {
-              const event = navigation.emit({
-                  type: 'tabPress',
-                  target: route.key,
-                  canPreventDefault: true,
-              });
-
+              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
               const rootScreen = rootScreensByTab[route.name];
+              const currentTabRoute = state.routes[state.index];
+              const nestedState: any = currentTabRoute?.state;
+              const focusedNestedName = nestedState?.routes?.[nestedState.index]?.name;
+              const currentRouteName = currentTabRoute?.name;
+              const isInQuestionsScreen = (currentRouteName === 'Story' && focusedNestedName === 'FlowQuestionsScreen');
 
               const navigateAction = () => {
                   if (!isFocused && !event.defaultPrevented) {
-                      // Navigate to the root screen of the tab stack
                       navigation.navigate({ name: route.name, merge: true, params: { screen: rootScreen } });
-                      setCurrentRoute(rootScreen || route.name); // Update current route state
+                      setCurrentRoute(rootScreen || route.name);
                   } else if (isFocused && rootScreen && focusedNestedName !== rootScreen) {
-                       // If already focused but not on root, navigate to root
                        navigation.navigate({ name: route.name, merge: true, params: { screen: rootScreen } });
                        setCurrentRoute(rootScreen);
                   }
               };
 
               if (isInQuestionsScreen) {
-                  if (Platform.OS === 'web') {
-                      const result = window.confirm('Leave Chapter?\n\nAre you sure you want to leave this chapter? Your progress will be saved, but you\'ll need to restart the chapter.');
-                      if (result) {
-                          navigateAction();
-                      }
-                  } else {
-                      Alert.alert(
-                          'Leave Chapter?',
-                          'Are you sure you want to leave this chapter? Your progress will be saved, but you\'ll need to restart the chapter.',
-                          [
-                              { text: 'Cancel', style: 'cancel' },
-                              { text: 'Leave', style: 'destructive', onPress: navigateAction }
-                          ]
-                      );
-                  }
+                   if (Platform.OS === 'web') {
+                       if (window.confirm('Leave Chapter?\n\nAre you sure you want to leave...?')) { navigateAction(); }
+                   } else {
+                       Alert.alert( 'Leave Chapter?', 'Are you sure...?', [ { text: 'Cancel', style: 'cancel' }, { text: 'Leave', style: 'destructive', onPress: navigateAction } ]);
+                   }
               } else {
                   navigateAction();
               }
@@ -524,31 +479,27 @@ function AppContent() {
               <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                 <TouchableOpacity
                   style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}
-                  onPress={onPress} // Use the consolidated onPress handler
+                  onPress={onPress}
                   activeOpacity={0.7}
                 >
-                  <Animated.View style={{ alignItems: 'center' }}>
-                    <Animated.View>
-                      <Ionicons
-                        name={iconMap[route.name as keyof typeof iconMap]}
-                        size={22}
-                        color={isWordsTab ?
-                          (wordsTabAnimating ? '#FF0000' : (isFocused ? theme.tabBarActive : theme.tabBarInactive)) :
-                          (isFocused ? theme.tabBarActive : theme.tabBarInactive)
-                        }
-                        style={{ marginBottom: 2 }}
-                      />
+                  <View style={styles.tabItemContainer}> {/* Wrapper for dot */}
+                    <Animated.View style={{ alignItems: 'center' }}>
+                      <Animated.View>
+                        <Ionicons
+                          name={iconMap[route.name as keyof typeof iconMap]}
+                          size={22}
+                          color={isWordsTab ? (wordsTabAnimating ? '#FF0000' : (isFocused ? theme.tabBarActive : theme.tabBarInactive)) : (isFocused ? theme.tabBarActive : theme.tabBarInactive)}
+                          style={{ marginBottom: 2 }}
+                        />
+                      </Animated.View>
+                      <Text style={{ color: isFocused ? theme.tabBarActive : theme.tabBarInactive, fontWeight: isFocused ? 'bold' : 'normal', fontSize: getScaledFontSize(16) }}>
+                        {label}
+                      </Text>
                     </Animated.View>
-                    <Text
-                      style={{
-                        color: isFocused ? theme.tabBarActive : theme.tabBarInactive,
-                        fontWeight: isFocused ? 'bold' : 'normal',
-                        fontSize: getScaledFontSize(16)
-                      }}
-                    >
-                      {label}
-                    </Text>
-                  </Animated.View>
+                    {showNotification && ( // Render dot conditionally
+                      <View style={[styles.notificationDot, { backgroundColor: theme.error }]} />
+                    )}
+                  </View>
                 </TouchableOpacity>
               </View>
               {index < state.routes.length - 1 && (
@@ -560,31 +511,14 @@ function AppContent() {
       </View>
     );
   }
+  // --- END CustomTabBar ---
 
-
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  if (loading) { return ( <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator size="large" /></View> ); }
 
   return (
-    // --- NEW: Add ref, onReady, and onStateChange to NavigationContainer ---
-    <NavigationContainer
-        ref={navigationRef}
-        onReady={handleReady}
-        onStateChange={handleStateChange}
-    >
+    <NavigationContainer ref={navigationRef} onReady={handleReady} onStateChange={handleStateChange} >
         {user ? (
-        <Tab.Navigator
-          initialRouteName="Story"
-          screenOptions={{ headerShown: false }}
-          tabBar={props => <CustomTabBar {...props} />}
-          // screenListeners removed as focus is handled implicitly by state change
-        >
-          {/* Keep your Tab.Screen definitions */}
+        <Tab.Navigator initialRouteName="Story" screenOptions={{ headerShown: false }} tabBar={props => <CustomTabBar {...props} />} >
           <Tab.Screen name="Story">
             {() => <FlowStackScreen setCurrentRoute={setCurrentRoute} />}
           </Tab.Screen>
@@ -597,22 +531,42 @@ function AppContent() {
         </Tab.Navigator>
         ) : (
         <Stack.Navigator>
-            {/* Keep your Stack.Screen definitions */}
             <Stack.Screen name="SignIn" component={SignInScreen} options={{ headerShown: false }} />
             <Stack.Screen name="SignUp" component={SignUpScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
         )}
-        <StatusBar barStyle={theme.statusBar as any} /> {/* Added 'as any' to bypass potential type mismatch */}
+        <StatusBar barStyle={theme.statusBar as any} />
     </NavigationContainer>
   );
 }
 
+// Wrap App component with providers
 export default function App() {
   return (
     <ThemeProvider>
       <FontSizeProvider>
-        <AppContent />
+        <NotificationProvider> {/* Added NotificationProvider */}
+          <AppContent />
+        </NotificationProvider>
       </FontSizeProvider>
     </ThemeProvider>
   );
 }
+
+// Add styles for the notification dot
+const styles = StyleSheet.create({
+  tabItemContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: -2,
+    right: -10, // Adjust as needed based on text length
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    zIndex: 1, // Ensure dot is above text/icon
+  },
+});
