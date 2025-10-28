@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore'; // Removed deleteField as it wasn't used
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, UIManager, View } from 'react-native';
 import { useFontSize } from '../FontSizeContext';
@@ -45,13 +45,12 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
   const { getFontSizeMultiplier } = useFontSize();
   const { setHasNewWords } = useNotification(); // Use notification context
 
-  const [currentIndex, setCurrentIndex] = useState(Math.max(0, Math.min(startIndex, (chapter.questions.length || 1) - 1)));
+  const [currentIndex, setCurrentIndex] = useState(Math.max(0, Math.min(startIndex, (chapter.questions?.length || 1) - 1))); // Safer check for questions length
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
   const [selectedIdx, setSelectedIdx] = useState<Record<string, number>>({});
   const [showCompletion, setShowCompletion] = useState(false);
   const [successRate, setSuccessRate] = useState(0);
-  // removed 'saving' state as it wasn't used
   const [nextChapter, setNextChapter] = useState<any | null>(null);
   const [nextIndex, setNextIndex] = useState<number | null>(null);
   const [isPro, setIsPro] = useState<boolean>(false);
@@ -143,12 +142,12 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
  // Handle vocabulary word add/remove toggle
  const handleVocabToggle = async (wordDetails: any) => {
     const user = auth.currentUser;
-    if (!user) return;
-    const word = wordDetails.word; // Extract the word string
+    if (!user || !wordDetails?.word) return; // Basic validation
+    const word = wordDetails.word;
 
     try {
         const userRef = doc(db, 'users', user.uid);
-        // We rely on the userWords state which was loaded initially
+        // Use current state, assuming it's reasonably up-to-date from initial load
         const isAlreadyAdded = userWords.some((w: any) => w.word === word);
 
         let updatedUserWordsList: any[];
@@ -159,25 +158,22 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
             updatedUserWordsList = userWords.filter((w: any) => w.word !== word);
             // Update selectedVocabWords state if it was selected in this session
             setSelectedVocabWords(prev => prev.filter(w => w !== word));
+            console.log(`Word removed: ${word}`);
         } else {
             // Add word
             const newWordEntry = {
                 ...wordDetails, // Use the full details passed in
                 addedAt: Date.now(),
                 nextReview: Date.now() + (24 * 60 * 60 * 1000), // Default review in 1 day
-                reviewCount: 0,
-                intervalIndex: 0,
-                lastReviewed: Date.now(), // Set initial lastReviewed
-                easeFactor: 2.5,
-                consecutiveCorrect: 0,
-                totalCorrect: 0,
-                totalIncorrect: 0,
-                masteryLevel: 'new' as const,
+                reviewCount: 0, intervalIndex: 0, lastReviewed: Date.now(),
+                easeFactor: 2.5, consecutiveCorrect: 0, totalCorrect: 0,
+                totalIncorrect: 0, masteryLevel: 'new' as const,
             };
             updatedUserWordsList = [...userWords, newWordEntry];
             // Add to session selection state
             setSelectedVocabWords(prev => [...prev, word]);
             newlyAdded = true;
+            console.log(`Word added: ${word}`);
         }
 
         // Update Firestore
@@ -185,18 +181,18 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         batch.update(userRef, { myWords: updatedUserWordsList });
         await batch.commit();
 
-        // Update local state for UI responsiveness
+        // Update local state IMMEDIATELY for UI responsiveness
         setUserWords(updatedUserWordsList);
 
         // Set notification flag if a new word was added
         if (newlyAdded) {
             setHasNewWords(true);
-            console.log("New word added, setting notification.");
+            console.log("New word added, setting notification flag.");
         }
 
     } catch (e) {
         console.error('Failed to toggle vocabulary word:', e);
-        Alert.alert("Error", "Could not update your word list."); // User feedback
+        Alert.alert("Error", "Could not update your word list. Please try again.");
     }
 };
 
@@ -206,13 +202,15 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
     return userWords.some(w => w.word === word);
   };
 
-  const totalQuestions = chapter.questions.length;
+  const totalQuestions = chapter.questions?.length || 0; // Safer access
 
+  // --- Fixed getScaledFontSize ---
   const getScaledFontSize = (baseSize: number) => {
     const multiplier = getFontSizeMultiplier();
     const result = Math.round(baseSize * (multiplier || 1));
     return isNaN(result) ? baseSize : result;
   };
+  // --- End Fix ---
 
   const buildOptions = (q: FlowQuestion): Option[] => [
     { text: q.correctAnswer, emoji: q.correctEmoji, correct: true },
@@ -238,8 +236,6 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
       const user = auth.currentUser;
       if (!user) return;
       const userRef = doc(db, 'users', user.uid);
-      // Use Firestore transaction or batched write for atomicity if needed,
-      // but for simple progress update, updateDoc is often sufficient.
       await updateDoc(userRef, {
         [`progress.flow_${storyId}_${chapter.id}_lastIndex`]: index
       });
@@ -258,22 +254,16 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
             const currentProgress = userSnap.data().progress || {};
-            // Create a new object excluding the keys for the current chapter
             const newProgress = Object.keys(currentProgress).reduce((acc, key) => {
                 if (!key.startsWith(`flow_${storyId}_${chapter.id}_`)) {
                     acc[key] = currentProgress[key];
                 }
                 return acc;
-            }, {} as Record<string, any>); // Type assertion for accumulator
-
-            // Update Firestore with the filtered progress object
+            }, {} as Record<string, any>);
             await updateDoc(userRef, { progress: newProgress });
             console.log(`Deleted progress for chapter ${chapter.id}`);
         }
-    } catch (e) {
-        console.error('Failed deleting chapter progress', e);
-        // Optionally alert the user or log more details
-    }
+    } catch (e) { console.error('Failed deleting chapter progress', e); }
 };
 
 
@@ -285,16 +275,11 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
       if (!user) return;
       const userRef = doc(db, 'users', user.uid);
       const percentage = Math.round((finalScore / totalQuestions) * 100);
-      // Atomically update only the percentage field using dot notation
       await updateDoc(userRef, {
          [`progress.flow_${storyId}_${chapter.id}_percentage`]: percentage,
-         // Optionally remove the lastIndex when chapter is complete
-         // [`progress.flow_${storyId}_${chapter.id}_lastIndex`]: deleteField() // Requires importing deleteField from 'firebase/firestore'
       });
       console.log(`Persisted final score percentage: ${percentage}%`);
-    } catch (e) {
-      console.error('Failed saving final progress', e);
-    }
+    } catch (e) { console.error('Failed saving final progress', e); }
   };
 
 
@@ -302,13 +287,9 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
     if (Platform.OS === 'web') {
         if (window.confirm(`${title}\n\n${message}`)) {
             const destructiveButton = buttons.find(btn => btn.style === 'destructive');
-            if (destructiveButton?.onPress) {
-                destructiveButton.onPress();
-            }
+            if (destructiveButton?.onPress) { destructiveButton.onPress(); }
         }
-    } else {
-        Alert.alert(title, message, buttons);
-    }
+    } else { Alert.alert(title, message, buttons); }
 };
 
  const handleBackConfirm = () => {
@@ -321,10 +302,8 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
           text: 'Leave',
           style: 'destructive',
           onPress: async () => {
-            // No need to delete progress here as it's not saved until completion
-            // Just navigate back
-            setCurrentRoute?.('FlowStoryScreen'); // Ensure route state is reset
-            // Go back to the Detail screen instead of Intro
+            setCurrentRoute?.('FlowStoryScreen');
+            // Go back to the Detail screen
             navigation.navigate('FlowDetailScreen', { storyId });
           }
         },
@@ -335,105 +314,83 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
    // Handle selecting an answer
   const handleSelect = async (q: FlowQuestion, optIsCorrect: boolean, optionIndex: number) => {
-    // Prevent action if already answered or completed
-    if (answered[q.id] !== undefined || showCompletion) return;
+    if (!q || answered[q.id] !== undefined || showCompletion) return; // Extra check for q
 
-    // Record the answer
     setSelectedIdx(prev => ({ ...prev, [q.id]: optionIndex }));
     setAnswered(prev => ({ ...prev, [q.id]: optIsCorrect }));
-
-    // Update score if correct
     const newScore = optIsCorrect ? score + 1 : score;
     if (optIsCorrect) setScore(newScore);
 
     const isLastQuestion = currentIndex >= totalQuestions - 1;
 
-    // --- Animation Logic ---
-    // Short delay to show feedback before starting animation
     setTimeout(() => {
         if (isLastQuestion) {
-            // Calculate final rate and show completion flow
             const rate = totalQuestions > 0 ? Math.round((newScore / totalQuestions) * 100) : 0;
             setSuccessRate(rate);
             setShowCompletion(true);
             setFeedbackStep('score');
-            persistProgress(newScore); // Save final score percentage
+            persistProgress(newScore);
         } else {
-            // Animate to the next question using transitionAnim
             Animated.timing(transitionAnim, {
-                toValue: 1,
-                duration: 600, // Duration of the slide/transform animation
-                useNativeDriver: false, // Needed for color/font interpolation
+                toValue: 1, duration: 600, useNativeDriver: false, // Keep false for non-native props
             }).start(() => {
-                // Animation complete: Update state and reset for next cycle
                 const nextIdx = currentIndex + 1;
                 setCurrentIndex(nextIdx);
-                persistLastIndex(nextIdx); // Persist index of the *newly visible* question
-
-                // Reset animation value instantly
-                transitionAnim.setValue(0);
-
-                // Prepare and fade in options for the new question
-                optionsOpacity.setValue(0);
+                persistLastIndex(nextIdx);
+                transitionAnim.setValue(0); // Reset instantly
+                optionsOpacity.setValue(0); // Prepare options fade in
                 Animated.timing(optionsOpacity, {
-                    toValue: 1,
-                    duration: 400, // Options fade-in duration
-                    useNativeDriver: true, // Opacity can use native driver
+                    toValue: 1, duration: 400, useNativeDriver: true,
                 }).start();
             });
         }
-    }, 1500); // Duration to show feedback (e.g., 1.5 seconds)
+    }, 1500); // Feedback duration
 };
 
 
 
-  const current = chapter.questions[currentIndex];
-  const next = chapter.questions[currentIndex + 1];
+  const current = chapter.questions?.[currentIndex]; // Safer access
+  const next = chapter.questions?.[currentIndex + 1]; // Safer access
 
-  // Configure header - simplified back handling via 'beforeRemove' listener
+  // Configure header
   useEffect(() => {
     navigation.setOptions({
-      headerTitle: chapter.title || "Questions", // Use chapter title or fallback
-      headerBackVisible: false, // Use custom back button
+      headerTitle: chapter.title || "Questions",
+      headerBackVisible: false,
       headerLeft: () => (
         <TouchableOpacity onPress={handleBackConfirm} style={styles.headerBackButton}>
           <Ionicons name="arrow-back" size={24} color={theme.primaryText} />
-          <Text style={styles.headerBackText}>Chapter</Text>
+          <Text style={[styles.headerBackText, { color: theme.primaryText }]}>Chapter</Text>
         </TouchableOpacity>
       ),
     });
   }, [navigation, chapter.title, theme.primaryText]); // Dependencies
 
 
-  // Load next chapter details when showing completion screen
+  // Load next chapter details
   useEffect(() => {
     const loadNextChapterDetails = async () => {
-      if (!showCompletion || !storyId) return; // Only run when needed and storyId is available
+      if (!showCompletion || !storyId) return;
       try {
         const storySnap = await getDoc(doc(db, 'flowStories', storyId));
         if (storySnap.exists()) {
           const storyData = storySnap.data() as any;
           const activeChapters = (storyData.chapters || [])
                                 .filter((c: any) => c.active === true)
-                                .sort((a:any, b:any) => (a.order ?? Infinity) - (b.order ?? Infinity)); // Ensure sorted
+                                .sort((a:any, b:any) => (a.order ?? Infinity) - (b.order ?? Infinity));
           const currentChapterIndexInFullList = activeChapters.findIndex((c: any) => c.id === chapter.id);
 
           if (currentChapterIndexInFullList >= 0 && currentChapterIndexInFullList + 1 < activeChapters.length) {
             setNextChapter(activeChapters[currentChapterIndexInFullList + 1]);
-            setNextIndex(currentChapterIndexInFullList + 1); // Store the index relative to the active chapters list
+            setNextIndex(currentChapterIndexInFullList + 1);
           } else {
-            setNextChapter(null); // No next chapter
-            setNextIndex(null);
+            setNextChapter(null); setNextIndex(null);
           }
         }
-      } catch (error) {
-        console.error("Error loading next chapter details:", error);
-        setNextChapter(null);
-        setNextIndex(null);
-      }
+      } catch (error) { console.error("Error loading next chapter details:", error); setNextChapter(null); setNextIndex(null); }
     };
     loadNextChapterDetails();
-  }, [showCompletion, storyId, chapter.id]); // Dependencies
+  }, [showCompletion, storyId, chapter.id]);
 
 
   // --- Feedback Modals Rendering (Unchanged) ---
@@ -549,14 +506,10 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
                         {nextChapter && (
                         <TouchableOpacity style={[styles.actionButtonPrimary, { backgroundColor: theme.primary, marginTop: 24 }]} onPress={async () => {
-                           if (!isPro && (nextIndex ?? 0) >= 3) { // Check Pro status for next chapter index
-                                return Alert.alert( /* ... Pro alert ... */
-                                    'Get Pro to Continue', 'Chapters 4+ require Pro.',
-                                    [ { text: 'Not now', style: 'cancel' }, { text: 'Buy Pro', onPress: () => navigation.navigate('Settings', { screen: 'Settings' }) } ]
-                                );
+                           if (!isPro && (nextIndex ?? 0) >= 3) {
+                                return Alert.alert( 'Get Pro to Continue', 'Chapters 4+ require Pro.', [ { text: 'Not now', style: 'cancel' }, { text: 'Buy Pro', onPress: () => navigation.navigate('Settings', { screen: 'Settings' }) } ]);
                            }
-                            // Navigate immediately, progress already saved
-                            navigation.replace('FlowChapterIntroScreen', { storyId, chapter: nextChapter, storyTitle: '', startIndex: 0 }); // Use replace
+                            navigation.replace('FlowChapterIntroScreen', { storyId, chapter: nextChapter, storyTitle: '', startIndex: 0 });
                         }}>
                             <Text style={styles.actionButtonTextPrimary}>Go to Next Chapter</Text>
                         </TouchableOpacity>
@@ -566,18 +519,13 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
                             <Text style={[styles.actionButtonTextSecondary, { color: theme.primaryText }]}>Back to Story Chapters</Text>
                         </TouchableOpacity>
 
-                        {!passed && ( // Only show Retry if failed
+                        {/* Show Retry only if failed */}
+                        {!passed && (
                              <TouchableOpacity style={[styles.actionButtonTertiary, { borderColor: theme.secondaryText, marginTop: 12 }]} onPress={() => {
                                  // Reset state for retry
-                                 setCurrentIndex(0);
-                                 setScore(0);
-                                 setAnswered({});
-                                 setSelectedIdx({});
-                                 setShowCompletion(false);
-                                 setFeedbackStep('score'); // Reset feedback step
-                                 setSelectedVocabWords([]); // Reset session vocab selection
-                                 // Optionally clear persisted lastIndex here if desired
-                                 // navigation.replace('FlowQuestionsScreen', { storyId, chapter, startIndex: 0 }); // Use replace if preferred
+                                 setCurrentIndex(0); setScore(0); setAnswered({}); setSelectedIdx({});
+                                 setShowCompletion(false); setFeedbackStep('score');
+                                 setSelectedVocabWords([]); // Reset session vocab
                              }}>
                                 <Text style={[styles.actionButtonTextTertiary, { color: theme.secondaryText }]}>Retry Chapter</Text>
                             </TouchableOpacity>
@@ -589,7 +537,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
             );
         }
 
-        return null; // Should not happen
+        return null; // Should not be reached
     }
   // --- End of feedback modal rendering ---
 
@@ -607,8 +555,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
 
   // 2. Next Question (Preview) Animation (Slides up from bottom, transforms)
   const nextPreviewAnimStyle = {
-    // Starts fully transparent, becomes visible as it moves up slightly, then fades slightly at the end if needed (or stays 1)
-    opacity: transitionAnim.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 1], extrapolate: 'clamp' }),
+    opacity: transitionAnim.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 1], extrapolate: 'clamp' }), // Fade in quickly, stay visible
     transform: [{ translateY: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [NEXT_PREVIEW_Y_POSITION, QUESTION_Y_POSITION], extrapolate: 'clamp' }) }],
     backgroundColor: transitionAnim.interpolate({ inputRange: [0, 0.8, 1], outputRange: [theme.surfaceColor, theme.surfaceColor, 'transparent'] }), // Fades background
   };
@@ -617,9 +564,10 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
   // 4. Next Question's *Text* - Transforms style
   const nextTextAnimStyle = {
     color: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [theme.secondaryText, theme.primaryText] }),
-    fontSize: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [getScaledFontSize(16), getScaledFontSize(22)] }), // Becomes main question size
-    fontWeight: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: ['400', '600'] } as any), // Becomes main question weight (use 'any' to bypass TS issue)
-    fontStyle: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: ['italic', 'normal'] }),
+    fontSize: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: [getScaledFontSize(16), getScaledFontSize(22)] }),
+    fontWeight: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: ['400', '600'] } as any),
+    // REMOVED fontStyle interpolation causing the error
+    // fontStyle: transitionAnim.interpolate({ inputRange: [0, 1], outputRange: ['italic', 'normal'] }),
   };
   // --- End of animation style definitions ---
 
@@ -638,7 +586,8 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
                 <Text style={[styles.scoreText, { color: theme.primary, fontSize: getScaledFontSize(16), fontWeight: 'bold' }]}>{score} correct</Text>
               </View>
               <View style={[styles.progressBar, { backgroundColor: theme.surfaceColor }]}>
-                <Animated.View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${progressPct}%` }]} />
+                {/* Use Animated.View for progress fill if you want it animated */}
+                <View style={[styles.progressFill, { backgroundColor: theme.primary, width: `${progressPct}%` }]} />
               </View>
             </View>
 
@@ -672,7 +621,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
                       }
 
                       return (
-                        <TouchableOpacity key={i} disabled={isCurrentAnswered} style={[styles.option, buttonStyle]} onPress={() => handleSelect(current, opt.correct, i)}>
+                        <TouchableOpacity key={`${current.id}-${i}`} disabled={isCurrentAnswered} style={[styles.option, buttonStyle]} onPress={() => handleSelect(current, opt.correct, i)}>
                           <Text style={[styles.optionText, textStyle, { fontSize: getScaledFontSize(16) }]}> {opt.text}</Text>
                           {iconName && <Ionicons name={iconName} size={22} color={iconColor} style={styles.optionIcon} />}
                         </TouchableOpacity>
@@ -688,6 +637,7 @@ const FlowQuestionsScreen = ({ route, navigation, setCurrentRoute }: any) => {
                   <Animated.Text style={[styles.nextPreviewLabel, { color: theme.primary, fontSize: getScaledFontSize(12) }, nextLabelAnimStyle]}>
                     Next
                   </Animated.Text>
+                  {/* Static style now includes italic */}
                   <Animated.Text style={[styles.nextPreviewText, nextTextAnimStyle]}>
                     {next.npcSentence}
                   </Animated.Text>
@@ -734,10 +684,10 @@ const styles = StyleSheet.create({
   },
   nextPreviewLabel: { textTransform: 'uppercase', fontWeight: 'bold', marginBottom: 8 },
   nextPreviewText: {
-     // fontStyle: 'italic', // Controlled by animation
-     // color, fontSize, fontWeight controlled by animation
+     fontStyle: 'italic', // Apply italic statically
      textAlign: 'center', // Center text as it transforms
      lineHeight: 30, // Match npcSentence lineHeight
+     // color, fontSize, fontWeight controlled by animation
   },
   completionContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 20 },
   completionCard: { borderRadius: 20, padding: 24, width: '100%', maxWidth: 420, overflow: 'hidden' },
@@ -758,16 +708,8 @@ const styles = StyleSheet.create({
   vocabEquivalent: { fontSize: 14, marginTop: 4 },
   vocabStatus: { marginTop: 12, alignItems: 'flex-start' },
   vocabStatusText: { fontSize: 14, fontWeight: '600' },
-  headerBackButton: { // Style for custom back button
-      paddingHorizontal: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
-  },
-  headerBackText: { // Style for text next to back arrow
-      fontSize: 16,
-      marginLeft: 6,
-      color: 'white', // Will be theme.primaryText
-  },
+  headerBackButton: { paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center' },
+  headerBackText: { fontSize: 16, marginLeft: 6 }, // Removed static color
 });
 
 export default FlowQuestionsScreen;
