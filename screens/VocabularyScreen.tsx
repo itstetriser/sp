@@ -159,8 +159,6 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
       const reviewCount = word.reviewCount || 0;
       if (reviewCount === 0) return 'new';
       if (reviewCount < 3) return 'learning';
-      // Add 'mastered' logic if needed, otherwise default to reviewing
-      // if (word.consecutiveCorrect >= 5 ...) return 'mastered';
       return 'reviewing';
   };
 
@@ -170,7 +168,6 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
     const totalWords = words.length;
     const dueWordsCount = getWordsDueForReview().length;
     const learnedWordsCount = words.filter(word => word.masteryLevel === 'learned').length;
-    // Calculate counts based on masteryLevel or reviewCount
     const newWordsCount = words.filter(word => (word.reviewCount || 0) === 0 && word.masteryLevel !== 'learned').length;
     const learningWordsCount = words.filter(word => (word.reviewCount || 0) > 0 && (word.reviewCount || 0) < 3 && word.masteryLevel !== 'learned').length; // Example logic
     const reviewingWordsCount = words.filter(word => (word.reviewCount || 0) >= 3 && word.masteryLevel !== 'learned').length; // Example logic
