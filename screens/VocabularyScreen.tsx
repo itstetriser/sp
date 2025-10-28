@@ -1,9 +1,9 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth'; // Keep if sign out is needed elsewhere
 import { doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native'; // Added ActivityIndicator
+import { ActivityIndicator, Alert, Animated, Dimensions, PanResponder, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../firebase';
 import { useFontSize } from '../FontSizeContext';
 import { useNotification } from '../NotificationContext'; // Import notification hook
@@ -11,8 +11,8 @@ import { useTheme } from '../ThemeContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-// Spaced repetition intervals (in days) - Simplified for example
-const REVIEW_INTERVALS = [1, 3, 7, 14, 30]; // Removed longer intervals for simplicity
+// Spaced repetition intervals (simplified)
+const REVIEW_INTERVALS = [1, 3, 7, 14, 30];
 
 interface WordWithSpacedRepetition {
   word: string;
@@ -32,17 +32,17 @@ interface WordWithSpacedRepetition {
   masteryLevel?: 'new' | 'learning' | 'reviewing' | 'mastered' | 'learned';
   masteredAt?: number;
   learnedAt?: number;
-  addedAt?: number; // Keep track of when added
+  addedAt?: number;
 }
 
 const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, triggerWordsTabAnimation }: { wordCount?: number, setWordCount?: (n: number) => void, setCurrentRoute?: (route: string) => void, triggerWordsTabAnimation?: () => void }) => {
-  const { theme, themeMode, toggleTheme } = useTheme();
+  const { theme } = useTheme(); // Removed unused themeMode, toggleTheme
   const { getFontSizeMultiplier } = useFontSize();
   const navigation = useNavigation();
   const { setHasNewWords } = useNotification(); // Use notification context
   const [words, setWords] = useState<WordWithSpacedRepetition[]>([]);
   const [loading, setLoading] = useState(true);
-  // removed unused state: removing, practiceMode, practiceWords, currentIdx, flipped, flippedCards, showLearnedWords, pan, practiceWordsRef, currentIdxRef
+  // Removed unused state vars related to old practice mode
 
 
   const getScaledFontSize = (baseSize: number) => {
@@ -52,11 +52,10 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
   };
 
   const fetchWords = async () => {
-    setLoading(true); // Start loading indicator
+    setLoading(true);
     const user = auth.currentUser;
     if (!user) {
-        setWords([]); // Clear words if no user
-        setLoading(false);
+        setWords([]); setLoading(false);
         return;
     }
 
@@ -65,28 +64,26 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
         const userSnap = await getDoc(userRef);
         if (userSnap.exists() && Array.isArray(userSnap.data().myWords)) {
             const rawWords = userSnap.data().myWords;
-            // Ensure words have necessary default properties
             const formattedWords: WordWithSpacedRepetition[] = rawWords.map((wordData: any) => ({
-                word: 'Unknown Word', // Default word
-                reviewCount: 0,
-                intervalIndex: 0,
-                easeFactor: 2.5,
-                masteryLevel: 'new',
-                addedAt: Date.now(),
-                ...wordData, // Spread existing data, potentially overwriting defaults
-                // Ensure nextReview has a sensible default if missing
-                nextReview: wordData.nextReview || (Date.now() + 24 * 60 * 60 * 1000), // Default 1 day
+                word: 'Unknown Word', reviewCount: 0, intervalIndex: 0,
+                easeFactor: 2.5, masteryLevel: 'new', addedAt: Date.now(),
+                ...wordData,
+                nextReview: wordData.nextReview || (Date.now() + 24 * 60 * 60 * 1000),
             }));
+             // Sort words, e.g., by date added or alphabetically
+            formattedWords.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0)); // Sort newest first
             setWords(formattedWords);
+            // Update word count prop if available
+            setWordCount?.(formattedWords.length);
         } else {
-            setWords([]); // Set empty array if no words field or not an array
+            setWords([]);
+            setWordCount?.(0);
         }
     } catch (error) {
         console.error("Error fetching user words:", error);
-        setWords([]); // Set empty on error
-        // Optionally show an error message to the user
+        setWords([]); setWordCount?.(0);
     } finally {
-        setLoading(false); // Stop loading indicator
+        setLoading(false);
     }
 };
 
@@ -102,35 +99,29 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
       console.log('VocabularyScreen focused - clearing notification and fetching words');
       setHasNewWords(false); // Clear the flag
       fetchWords(); // Refresh the word list
-      // No cleanup needed here
-      return () => {};
-    }, []) // Empty dependency array means it runs on focus
+      return () => {}; // No cleanup needed
+    }, []) // Empty dependency array ensures it runs on focus
   );
 
-  // Spaced repetition functions
+  // --- Spaced repetition logic (simplified for this screen's purpose) ---
   const getWordsDueForReview = (): WordWithSpacedRepetition[] => {
     const now = Date.now();
     return words.filter(word => {
-      // Review if due OR if it's new and hasn't been learned yet
       const isDue = word.nextReview && word.nextReview <= now;
       const isNew = (word.reviewCount || 0) === 0;
       return (isDue || isNew) && word.masteryLevel !== 'learned';
     });
   };
 
-  // Get random words from user's list (excluding learned)
   const getRandomWords = (count: number = 10): WordWithSpacedRepetition[] => {
     const activeWords = words.filter(word => word.masteryLevel !== 'learned');
-    // Ensure we don't try to slice more than available
     const numToSelect = Math.min(count, activeWords.length);
     if (numToSelect === 0) return [];
-
     const shuffled = [...activeWords].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, numToSelect);
   };
 
-
-  // Start practice session
+  // --- Start practice navigation ---
  const startPractice = () => {
     let wordsForPractice: WordWithSpacedRepetition[];
     const dueWords = getWordsDueForReview();
@@ -139,48 +130,50 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
         wordsForPractice = dueWords;
         console.log(`Starting practice with ${dueWords.length} due words.`);
     } else {
-        // If no words are due, select random words that are not 'learned'
         const availableWords = words.filter(word => word.masteryLevel !== 'learned');
-        const count = Math.min(10, availableWords.length); // Practice up to 10 random words
+        const count = Math.min(10, availableWords.length);
         if (count === 0) {
-            // No words available to practice at all
-            Alert.alert("All Done!", "You have no words left to practice right now.");
-            return; // Exit if no words to practice
+            Alert.alert("All Done!", "You have learned all your words or have none added yet!");
+            return;
         }
         wordsForPractice = getRandomWords(count);
         console.log(`No words due. Starting practice with ${count} random words.`);
     }
 
-    // Shuffle the selected words for practice order
-    wordsForPractice.sort(() => Math.random() - 0.5);
+    if (wordsForPractice.length === 0) {
+         Alert.alert("No Words", "There are no words available for practice right now.");
+         return;
+    }
+
+    wordsForPractice.sort(() => Math.random() - 0.5); // Shuffle practice order
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Navigate to PracticeScreen, passing the selected words
-    // Ensure the Practice screen expects 'words' and 'startIndex' params
+    // Navigate to PracticeScreen, ensuring params match what PracticeScreen expects
     navigation.navigate('Practice' as never, { words: wordsForPractice, startIndex: 0 } as never);
 };
 
 
-  // Calculate mastery level for display/stats
+  // --- Calculate mastery level (simplified for display) ---
   const calculateMasteryLevel = (word: WordWithSpacedRepetition): 'new' | 'learning' | 'reviewing' | 'learned' => {
-      if (word.masteryLevel === 'learned') return 'learned'; // Already marked as learned
+      if (word.masteryLevel === 'learned') return 'learned';
       const reviewCount = word.reviewCount || 0;
-      // Define criteria for other levels (adjust as needed)
       if (reviewCount === 0) return 'new';
-      if (reviewCount < 3) return 'learning'; // Example: Needs a few reviews
-      // Add more sophisticated logic if needed, e.g., based on correctness
-      return 'reviewing'; // Default for words reviewed multiple times but not learned
+      if (reviewCount < 3) return 'learning';
+      // Add 'mastered' logic if needed, otherwise default to reviewing
+      // if (word.consecutiveCorrect >= 5 ...) return 'mastered';
+      return 'reviewing';
   };
 
 
-  // Calculate statistics
+  // --- Calculate statistics ---
   const getStats = () => {
     const totalWords = words.length;
     const dueWordsCount = getWordsDueForReview().length;
     const learnedWordsCount = words.filter(word => word.masteryLevel === 'learned').length;
-    const newWordsCount = words.filter(word => calculateMasteryLevel(word) === 'new').length;
-    const learningWordsCount = words.filter(word => calculateMasteryLevel(word) === 'learning').length;
-    const reviewingWordsCount = words.filter(word => calculateMasteryLevel(word) === 'reviewing').length;
+    // Calculate counts based on masteryLevel or reviewCount
+    const newWordsCount = words.filter(word => (word.reviewCount || 0) === 0 && word.masteryLevel !== 'learned').length;
+    const learningWordsCount = words.filter(word => (word.reviewCount || 0) > 0 && (word.reviewCount || 0) < 3 && word.masteryLevel !== 'learned').length; // Example logic
+    const reviewingWordsCount = words.filter(word => (word.reviewCount || 0) >= 3 && word.masteryLevel !== 'learned').length; // Example logic
 
     return {
       totalWords, dueWordsCount, learnedWordsCount,
@@ -190,22 +183,23 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
 
   const stats = getStats();
 
+  // --- Render Logic ---
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={{ color: theme.secondaryText, marginTop: 10 }}>Loading words...</Text>
+          <Text style={{ color: theme.secondaryText, marginTop: 10, fontSize: getScaledFontSize(16) }}>Loading your words...</Text>
         </View>
       ) : (
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           {words.length === 0 ? (
             <View style={styles.centered}>
               <Text style={[styles.emptyText, { color: theme.secondaryText, fontSize: getScaledFontSize(18) }]}>
-                You haven't added any words yet.
+                Your word list is empty.
               </Text>
               <Text style={[styles.emptySubText, { color: theme.secondaryText, fontSize: getScaledFontSize(16) }]}>
-                Play stories to discover and save new vocabulary!
+                Play stories and tap vocabulary words to add them!
               </Text>
             </View>
           ) : (
@@ -217,22 +211,21 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
                 </Text>
                 <Text style={[styles.headerSubtitle, { color: theme.primaryText, fontSize: getScaledFontSize(16) }]}>
                   {stats.dueWordsCount > 0
-                    ? `You have ${stats.dueWordsCount} word${stats.dueWordsCount > 1 ? 's' : ''} to practice today.`
-                    : "No words due for review right now. Well done!"
+                    ? `You have ${stats.dueWordsCount} word${stats.dueWordsCount !== 1 ? 's' : ''} due for review.`
+                    : "No words due for review. Great job!"
                   }
                 </Text>
               </View>
 
               {/* Start Practice Button */}
-              {/* Show button if there are due words OR if there are any words not yet learned */}
               {(stats.dueWordsCount > 0 || words.some(w => w.masteryLevel !== 'learned')) && (
                  <TouchableOpacity
                     style={[styles.actionButtonPrimary, { backgroundColor: theme.primary }]}
                     onPress={startPractice}
                     activeOpacity={0.8}
                 >
-                    <Text style={styles.actionButtonTextPrimary}>
-                        {stats.dueWordsCount > 0 ? 'Start Review' : 'Practice Random Words'}
+                    <Text style={[styles.actionButtonTextPrimary, {fontSize: getScaledFontSize(16)}]}>
+                        {stats.dueWordsCount > 0 ? 'Start Review Session' : 'Practice Random Words'}
                     </Text>
                 </TouchableOpacity>
               )}
@@ -245,25 +238,29 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
                     Your Progress
                   </Text>
                   <Text style={[styles.learnedSectionText, { color: theme.secondaryText, fontSize: getScaledFontSize(16) }]}>
-                    You have learned <Text style={{ fontWeight: 'bold', color: theme.success }}>{stats.learnedWordsCount}</Text> word{stats.learnedWordsCount > 1 ? 's' : ''}. Keep going!
+                    You've learned <Text style={{ fontWeight: 'bold', color: theme.success }}>{stats.learnedWordsCount}</Text> word{stats.learnedWordsCount !== 1 ? 's' : ''}. Keep it up!
                   </Text>
                   <TouchableOpacity
                     style={[styles.actionButtonSecondary, { backgroundColor: theme.surfaceColor, borderColor: theme.primary, borderWidth: 1 }]}
                     onPress={() => navigation.navigate('LearnedWords' as never)}
                   >
-                    <Text style={[styles.actionButtonTextSecondary, { color: theme.primary }]}>
-                      View Learned Words
+                    <Text style={[styles.actionButtonTextSecondary, { color: theme.primary, fontSize: getScaledFontSize(16) }]}>
+                      View Learned Words ({stats.learnedWordsCount})
                     </Text>
                   </TouchableOpacity>
                 </View>
               )}
 
-               {/* Add Stats Section if desired */}
+               {/* Stats Section */}
                <View style={[styles.statsSection, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
-                 <Text style={[styles.statsTitle, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>Your Word List</Text>
+                 <Text style={[styles.statsTitle, { color: theme.primaryText, fontSize: getScaledFontSize(18) }]}>Word List Summary</Text>
                  <View style={styles.statRow}>
                     <Text style={[styles.statLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>Total Words:</Text>
                     <Text style={[styles.statValue, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>{stats.totalWords}</Text>
+                 </View>
+                  <View style={styles.statRow}>
+                    <Text style={[styles.statLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>Words Due:</Text>
+                    <Text style={[styles.statValue, { color: theme.warning, fontSize: getScaledFontSize(14) }]}>{stats.dueWordsCount}</Text>
                  </View>
                  <View style={styles.statRow}>
                     <Text style={[styles.statLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>New:</Text>
@@ -276,6 +273,10 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
                   <View style={styles.statRow}>
                     <Text style={[styles.statLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>Reviewing:</Text>
                     <Text style={[styles.statValue, { color: theme.primaryText, fontSize: getScaledFontSize(14) }]}>{stats.reviewingWordsCount}</Text>
+                 </View>
+                 <View style={styles.statRow}>
+                    <Text style={[styles.statLabel, { color: theme.secondaryText, fontSize: getScaledFontSize(14) }]}>Learned:</Text>
+                    <Text style={[styles.statValue, { color: theme.success, fontSize: getScaledFontSize(14) }]}>{stats.learnedWordsCount}</Text>
                  </View>
                </View>
 
@@ -291,25 +292,25 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  scrollView: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 20, alignItems: 'center' }, // Center content vertically when short
-  content: { width: '100%', maxWidth: 600, alignItems: 'center' }, // Max width for content
+  scrollView: { flex: 1, width: '100%' }, // Ensure ScrollView takes full width
+  scrollContent: { flexGrow: 1, padding: 20, alignItems: 'center' },
+  content: { width: '100%', maxWidth: 600, alignItems: 'center' }, // Content alignment
   emptyText: { textAlign: 'center', marginBottom: 12 },
-  emptySubText: { textAlign: 'center', opacity: 0.8 },
+  emptySubText: { textAlign: 'center', opacity: 0.8, lineHeight: 22 },
   headerSection: { alignItems: 'center', marginBottom: 30, width: '100%' },
   headerTitle: { fontWeight: 'bold', textAlign: 'center', marginBottom: 8 },
   headerSubtitle: { textAlign: 'center', lineHeight: 22 },
-  actionButtonPrimary: { paddingVertical: 16, paddingHorizontal: 32, borderRadius: 999, marginBottom: 30, width: '80%', maxWidth: 300 },
-  actionButtonTextPrimary: { color: '#fff', fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
+  actionButtonPrimary: { paddingVertical: 16, paddingHorizontal: 32, borderRadius: 999, marginBottom: 30, width: '90%', maxWidth: 350, alignItems: 'center' }, // Centered button text
+  actionButtonTextPrimary: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
   learnedSection: { padding: 20, borderRadius: 16, borderWidth: 1, marginBottom: 30, width: '100%', alignItems: 'center' },
   learnedSectionTitle: { fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
   learnedSectionText: { textAlign: 'center', marginBottom: 16, lineHeight: 22 },
-  actionButtonSecondary: { paddingVertical: 12, paddingHorizontal: 24, borderRadius: 999, width: '80%', maxWidth: 300 },
-  actionButtonTextSecondary: { fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
+  actionButtonSecondary: { paddingVertical: 14, paddingHorizontal: 24, borderRadius: 999, width: '90%', maxWidth: 350, alignItems: 'center' }, // Centered button text
+  actionButtonTextSecondary: { fontWeight: 'bold', textAlign: 'center' },
   statsSection: { padding: 20, borderRadius: 16, borderWidth: 1, width: '100%', marginBottom: 30 },
   statsTitle: { fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  statLabel: {},
+  statRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 10 }, // Added padding
+  statLabel: { opacity: 0.8 }, // Slightly dimmer label
   statValue: { fontWeight: '600' },
 });
 
