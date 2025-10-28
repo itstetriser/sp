@@ -232,12 +232,7 @@ const ProfileScreen = () => {
           </View>
         </View>
 
-        {/* Actions Section */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Account Actions</Text>
-          
-          
-        </View>
+       
       </ScrollView>
 
       {/* Edit Name Modal */}

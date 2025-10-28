@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { db } from '../firebase';
@@ -98,6 +98,9 @@ const WebAdminPanel = () => {
   const [editVocabWord, setEditVocabWord] = useState('');
   const [editVocabType, setEditVocabType] = useState('');
   const [editVocabDefinition, setEditVocabDefinition] = useState('');
+  
+  // Support messages
+  const [pendingMessagesCount, setPendingMessagesCount] = useState(0);
   const [editVocabExample1, setEditVocabExample1] = useState('');
   const [editVocabExample2, setEditVocabExample2] = useState('');
   const [editVocabEquivalent, setEditVocabEquivalent] = useState('');
@@ -109,6 +112,7 @@ const WebAdminPanel = () => {
 
   useEffect(() => {
     fetchStories();
+    fetchPendingMessagesCount();
   }, []);
 
   const fetchStories = async () => {
@@ -124,6 +128,19 @@ const WebAdminPanel = () => {
       Alert.alert('Error', 'Failed to load stories');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPendingMessagesCount = async () => {
+    try {
+      const messagesQuery = query(
+        collection(db, 'supportMessages'),
+        where('status', '==', 'pending')
+      );
+      const querySnapshot = await getDocs(messagesQuery);
+      setPendingMessagesCount(querySnapshot.size);
+    } catch (error) {
+      console.error('Error fetching pending messages count:', error);
     }
   };
 
@@ -926,9 +943,27 @@ const WebAdminPanel = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      <Text style={[styles.title, { color: theme.primaryText, fontSize: getScaledFontSize(24) }]}>
-        Story Admin Panel
-      </Text>
+      <View style={styles.headerContainer}>
+        <Text style={[styles.title, { color: theme.primaryText, fontSize: getScaledFontSize(24) }]}>
+          Story Admin Panel
+        </Text>
+        <TouchableOpacity 
+          style={styles.messageButton}
+          onPress={() => {
+            // Navigate to messages screen or show messages modal
+            Alert.alert('Messages', `You have ${pendingMessagesCount} pending support messages`);
+          }}
+        >
+          <Text style={styles.messageButtonText}>💬 Messages</Text>
+          {pendingMessagesCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationText}>
+                {pendingMessagesCount > 99 ? '99+' : pendingMessagesCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.content}>
         {/* Left Panel - Story Management */}
@@ -2236,6 +2271,50 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   vocabEquivalent: {
+    fontWeight: 'bold',
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 8,
+  },
+  messageButton: {
+    position: 'relative',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#1976D2',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  messageButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: 'bold',
   },
 });

@@ -210,9 +210,12 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
   // Spaced repetition functions
   const getWordsDueForReview = (): WordWithSpacedRepetition[] => {
     const now = Date.now();
-    return words.filter(word => 
-      word.nextReview && word.nextReview <= now && word.masteryLevel !== 'learned'
-    );
+    return words.filter(word => {
+      // Show words that are due for review OR are new and haven't been reviewed yet
+      const isDueForReview = word.nextReview && word.nextReview <= now;
+      const isNewAndNotReviewed = word.reviewCount === 0 && word.masteryLevel !== 'learned';
+      return (isDueForReview || isNewAndNotReviewed) && word.masteryLevel !== 'learned';
+    });
   };
 
   const updateWordReview = async (word: WordWithSpacedRepetition, action: 'easy' | 'hard' | 'learned') => {
@@ -365,7 +368,15 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 20 || Math.abs(gesture.dy) > 20,
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gesture) => {
+        // Only capture if it's a clear swipe gesture (not a tap)
+        return Math.abs(gesture.dx) > 30 || Math.abs(gesture.dy) > 30;
+      },
+      onPanResponderGrant: () => {
+        // Don't capture the touch - let TouchableOpacity handle it
+        return false;
+      },
       onPanResponderMove: Animated.event([
         null,
         { dx: pan.x, dy: pan.y },
@@ -479,7 +490,6 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
 
           {/* Main flashcard */}
           <Animated.View
-            {...panResponder.panHandlers}
             style={[styles.flashcard, { backgroundColor: theme.cardColor }, pan.getLayout()]}
           >
 
@@ -722,123 +732,84 @@ const VocabularyScreen = ({ wordCount = 0, setWordCount, setCurrentRoute, trigge
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {loading ? (
-        <Text style={{ color: theme.primaryText }}>Loading...</Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: theme.primaryText }}>Loading...</Text>
+        </View>
       ) : (
-        <ScrollView style={{ flex: 1, width: '100%' }} showsVerticalScrollIndicator={false}>
-          <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
-            {words.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(18), textAlign: 'center', marginBottom: 24 }}>
-                  You have no words to practice today.
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
+          {words.length === 0 ? (
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(18), textAlign: 'center', marginBottom: 24 }}>
+                You have no words to practice today.
+              </Text>
+              <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(16), textAlign: 'center' }}>
+                Play new scenarios to add new words.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ alignItems: 'center', width: '100%' }}>
+              {/* Header Section */}
+              <View style={{ alignItems: 'center', marginBottom: 30 }}>
+                <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(20), textAlign: 'center', marginBottom: 8, fontWeight: 'bold' }}>
+                  Vocabulary Practice
                 </Text>
-                <Text style={{ color: theme.secondaryText, fontSize: getScaledFontSize(16), textAlign: 'center' }}>
-                  Play new scenarios to add new words.
+                <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), textAlign: 'center', marginBottom: 24 }}>
+                  {getWordsDueForReview().length > 0 
+                    ? `You have ${getWordsDueForReview().length} words to practice today.`
+                    : "You have completed all your reviews for today."
+                  }
                 </Text>
               </View>
-            ) : (
-              <>
-                {/* Header Section */}
-                <View style={{ alignItems: 'center', marginBottom: 30 }}>
-                  <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(20), textAlign: 'center', marginBottom: 8, fontWeight: 'bold' }}>
-                    Vocabulary Practice
+
+              {/* Start Practice Button */}
+              {getWordsDueForReview().length > 0 && (
+                <TouchableOpacity 
+                  style={{
+                    backgroundColor: theme.success,
+                    paddingHorizontal: 32,
+                    paddingVertical: 16,
+                    borderRadius: 12,
+                    elevation: 2,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    marginBottom: 30,
+                  }}
+                  onPress={startReview}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ 
+                    color: '#fff', 
+                    fontSize: getScaledFontSize(18), 
+                    fontWeight: 'bold',
+                    textAlign: 'center'
+                  }}>
+                    Start Practice
                   </Text>
-                  <Text style={{ color: theme.primaryText, fontSize: getScaledFontSize(16), textAlign: 'center', marginBottom: 24 }}>
-                    {getWordsDueForReview().length > 0 
-                      ? `You have ${getWordsDueForReview().length} words to practice today.`
-                      : "You're all caught up! Keep practicing to maintain your vocabulary."
-                    }
+                </TouchableOpacity>
+              )}
+
+              {/* Learned Words Section */}
+              {words.filter(word => word.masteryLevel === 'learned').length > 0 && (
+                <View style={[styles.learnedSection, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
+                  <Text style={[styles.learnedSectionTitle, { color: theme.primaryText }]}>
+                    🎊Congrats🎊{'\n\n'}You have learned <Text style={{ color: theme.warning }}>{words.filter(word => word.masteryLevel === 'learned').length}</Text> words until today.{'\n\n'}Keep adding them by completing chapters.
                   </Text>
+                  <TouchableOpacity 
+                    style={[styles.learnedButton, { backgroundColor: theme.success }]}
+                    onPress={() => (navigation as any).navigate('LearnedWords')}
+                  >
+                    <Text style={[styles.learnedButtonText, { color: '#fff' }]}>
+                      See all
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-
-                {/* Progress Section */}
-                <View style={[styles.progressSection, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
-                  <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>
-                    📊 Your Progress
-                  </Text>
-                  
-                  <View style={styles.progressRow}>
-                    <Text style={[styles.progressLabel, { color: theme.secondaryText }]}>
-                      Total Words
-                    </Text>
-                    <Text style={[styles.progressValue, { color: theme.primary }]}>
-                      {stats.totalWords}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.progressRow}>
-                    <Text style={[styles.progressLabel, { color: theme.secondaryText }]}>
-                      New Words
-                    </Text>
-                    <Text style={[styles.progressValue, { color: theme.primary }]}>
-                      {stats.newWords}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.progressRow}>
-                    <Text style={[styles.progressLabel, { color: theme.secondaryText }]}>
-                      Learning Rate
-                    </Text>
-                    <Text style={[styles.progressValue, { color: theme.warning }]}>
-                      {stats.totalWords > 0 ? Math.round((stats.learnedWords / stats.totalWords) * 100) : 0}%
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Tips Section */}
-
-
-                {/* Learned Words Section */}
-                {words.filter(word => word.masteryLevel === 'learned').length > 0 && (
-                  <View style={[styles.learnedSection, { backgroundColor: theme.cardColor, borderColor: theme.borderColor }]}>
-                                        <Text style={[styles.learnedSectionTitle, { color: theme.primaryText }]}>
-                      🎊Congrats🎊{'\n\n'}You have learned <Text style={{ color: theme.warning }}>{words.filter(word => word.masteryLevel === 'learned').length}</Text> words until today.{'\n\n'}Keep adding them by completing chapters.
-                    </Text>
-                    <TouchableOpacity 
-                      style={[styles.learnedButton, { backgroundColor: theme.success }]}
-                      onPress={() => (navigation as any).navigate('LearnedWords')}
-                    >
-                      <Text style={[styles.learnedButtonText, { color: '#fff' }]}>
-                        See all
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-        </ScrollView>
+              )}
+            </View>
+          )}
+        </View>
       )}
-      <View style={{ marginTop: 24, marginBottom: 24, flexDirection: 'row', justifyContent: 'center', width: '100%', paddingHorizontal: 20 }}>
-        <TouchableOpacity 
-          style={{
-            backgroundColor: words.length > 0 ? theme.success : theme.secondaryText,
-            paddingHorizontal: 24,
-            paddingVertical: 12,
-            borderRadius: 8,
-            elevation: 2,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            opacity: words.length > 0 ? 1 : 0.6,
-          }}
-          onPress={() => {
-            if (words.length === 0) return;
-            (navigation as any).navigate('Practice', { words, startIndex: 0 });
-          }}
-          activeOpacity={words.length > 0 ? 0.8 : 1}
-          disabled={words.length === 0}
-        >
-          <Text style={{ 
-            color: '#fff', 
-            fontSize: getScaledFontSize(16), 
-            fontWeight: 'bold',
-            textAlign: 'center'
-          }}>
-            {getWordsDueForReview().length > 0 ? 'Start Practice' : 'Keep Practicing'}
-          </Text>
-        </TouchableOpacity>
-      </View>
       
 
       {/* Practice was moved to its own screen (PracticeScreen) */}

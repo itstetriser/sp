@@ -3,15 +3,12 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import { GoogleAuthProvider, sendPasswordResetEmail, signInWithCredential, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
- 
 import React, { useRef, useState } from 'react';
 import { Alert, Button, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth } from '../firebase';
 import { useTheme } from '../ThemeContext';
 
 WebBrowser.maybeCompleteAuthSession();
-
- 
 
 const SignInScreen = () => {
   const navigation = useNavigation();
@@ -60,8 +57,6 @@ const SignInScreen = () => {
       });
     }
   }, [response]);
-
-  
 
   
 

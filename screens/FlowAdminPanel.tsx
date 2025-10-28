@@ -1,6 +1,8 @@
-import { addDoc, collection, deleteDoc, doc, getDocs, updateDoc } from 'firebase/firestore';
+import { useNavigation } from '@react-navigation/native';
+import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+// *** ADD Platform HERE ***
+import { Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View, Platform } from 'react-native';
 import { db } from '../firebase';
 import { useFontSize } from '../FontSizeContext';
 import { useTheme } from '../ThemeContext';
@@ -29,6 +31,7 @@ interface Option {
 const FlowAdminPanel = () => {
   const { theme } = useTheme();
   const { getFontSizeMultiplier } = useFontSize();
+  const navigation = useNavigation();
   const [stories, setStories] = useState<FlowStory[]>([]);
   const [selectedStory, setSelectedStory] = useState<FlowStory | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<FlowChapter | null>(null);
@@ -51,6 +54,10 @@ const FlowAdminPanel = () => {
   // bulk vocab
   const [showBulkVocab, setShowBulkVocab] = useState(false);
   const [bulkVocabText, setBulkVocabText] = useState('');
+
+  // bulk chapters
+  const [showBulkChapters, setShowBulkChapters] = useState(false);
+  const [bulkChaptersText, setBulkChaptersText] = useState('');
 
   // story edit state
   const [storyTitleEdit, setStoryTitleEdit] = useState('');
@@ -94,6 +101,9 @@ const FlowAdminPanel = () => {
   const [newVocabWord, setNewVocabWord] = useState('');
   const [newVocabType, setNewVocabType] = useState('');
   const [newVocabDefinition, setNewVocabDefinition] = useState('');
+  
+  // Support messages
+  const [pendingMessagesCount, setPendingMessagesCount] = useState(0);
   const [newVocabExample1, setNewVocabExample1] = useState('');
   const [newVocabExample2, setNewVocabExample2] = useState('');
   const [newVocabEquivalent, setNewVocabEquivalent] = useState('');
@@ -109,8 +119,22 @@ const FlowAdminPanel = () => {
     if (!selectedStory && data.length > 0) setSelectedStory(data[0]);
   };
 
+  const fetchPendingMessagesCount = async () => {
+    try {
+      const messagesQuery = query(
+        collection(db, 'supportMessages'),
+        where('status', '==', 'pending')
+      );
+      const querySnapshot = await getDocs(messagesQuery);
+      setPendingMessagesCount(querySnapshot.size);
+    } catch (error) {
+      console.error('Error fetching pending messages count:', error);
+    }
+  };
+
   useEffect(() => {
     fetchStories();
+    fetchPendingMessagesCount();
   }, []);
 
   useEffect(() => {
@@ -347,6 +371,92 @@ const FlowAdminPanel = () => {
       Alert.alert('Success', `Added ${vocabItems.length} vocab items`);
     } catch (e) {
       console.error(e); Alert.alert('Error', 'Failed to add vocab');
+    }
+  };
+
+  const handleBulkAddChapters = async () => {
+    const story = selectedStory;
+    if (!story) { Alert.alert('Select a story first'); return; }
+    if (!bulkChaptersText.trim()) { Alert.alert('Enter chapters text'); return; }
+    
+    try {
+      // Split by chapter headers
+      const chapterBlocks = bulkChaptersText.split(/<Chapter \d+ - .*?>/).filter(block => block.trim());
+      const chapterHeaders = bulkChaptersText.match(/<Chapter \d+ - .*?>/g) || [];
+      
+      if (chapterBlocks.length === 0) { Alert.alert('No valid chapters found'); return; }
+      
+      const newChapters: FlowChapter[] = [];
+      let currentOrder = (story.chapters || []).length + 1;
+      
+      for (let i = 0; i < chapterBlocks.length; i++) {
+        const block = chapterBlocks[i].trim();
+        const header = chapterHeaders[i];
+        
+        if (!block || !header) continue;
+        
+        // Extract chapter title from header
+        const titleMatch = header.match(/<Chapter \d+ - (.*?)>/);
+        const chapterTitle = titleMatch ? titleMatch[1].trim() : `Chapter ${currentOrder}`;
+        
+        // Parse questions from the block
+        const questionBlocks = block.split('/').filter(q => q.trim());
+        const questions: FlowQuestion[] = [];
+        
+        for (const questionBlock of questionBlocks) {
+          const clean = questionBlock.replace(/^---|---$/g, '').trim();
+          const parts = clean.split('---').filter(p => p.trim());
+          
+          if (parts.length < 5) continue;
+          
+          const [npcSentence, correct, inc1, inc2, inc3] = parts;
+          questions.push({
+            id: Date.now().toString() + Math.random(),
+            npcName: '',
+            npcSentence: (npcSentence || '').trim(),
+            npcIcon: '',
+            correctAnswer: correct.trim(),
+            correctEmoji: '',
+            incorrectAnswer1: inc1.trim(),
+            incorrectEmoji1: '',
+            incorrectAnswer2: inc2.trim(),
+            incorrectEmoji2: '',
+            incorrectAnswer3: inc3.trim(),
+            incorrectEmoji3: ''
+          });
+        }
+        
+        if (questions.length > 0) {
+          newChapters.push({
+            id: Date.now().toString() + Math.random(),
+            title: chapterTitle,
+            active: true,
+            order: currentOrder,
+            questions,
+            vocabulary: [],
+            background: ''
+          });
+          currentOrder++;
+        }
+      }
+      
+      if (newChapters.length === 0) { Alert.alert('No valid chapters found'); return; }
+      
+      // Add new chapters to the story
+      const updatedChapters = [...(story.chapters || []), ...newChapters];
+      await updateDoc(doc(db, 'flowStories', story.id), { chapters: updatedChapters });
+      
+      setBulkChaptersText('');
+      setShowBulkChapters(false);
+      await fetchStories();
+      
+      const refreshed = (await getDocs(collection(db, 'flowStories'))).docs.map(d => ({ id: d.id, ...(d.data() as any) })) as FlowStory[];
+      setSelectedStory(refreshed.find(s => s.id === story.id) || null);
+      
+      Alert.alert('Success', `Added ${newChapters.length} chapters with ${newChapters.reduce((total, ch) => total + ch.questions.length, 0)} questions`);
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to add chapters');
     }
   };
 
@@ -618,28 +728,74 @@ const FlowAdminPanel = () => {
     }
   };
 
-  const handleDeleteStory = async (story: FlowStory) => {
-    console.log('Delete story button pressed for:', story.title);
+  // *** MODIFIED FUNCTION ***
+  const handleDeleteStory = (story: FlowStory) => {
     if (!story) return;
-    
-    try {
+
+    const storyTitle = story.title || 'this story';
+
+    // Helper function to perform the actual deletion
+    const deleteStoryItem = async () => {
       console.log('Deleting story:', story.id);
-      await deleteDoc(doc(db, 'flowStories', story.id));
-      console.log('Story deleted from Firestore');
-      
-      // Update local state
-      setStories(prev => prev.filter(s => s.id !== story.id));
-      if (selectedStory?.id === story.id) {
-        setSelectedStory(null);
-        setSelectedChapter(null);
+      try {
+        await deleteDoc(doc(db, 'flowStories', story.id));
+        console.log('Story deleted from Firestore');
+
+        // Update local state
+        setStories(prev => prev.filter(s => s.id !== story.id));
+        if (selectedStory?.id === story.id) {
+          setSelectedStory(null);
+          setSelectedChapter(null);
+        }
+
+        // Use appropriate alert for success
+        if (Platform.OS === 'web') {
+          window.alert('Story deleted successfully');
+        } else {
+          Alert.alert('Success', 'Story deleted successfully');
+        }
+
+      } catch (error) {
+        console.error('Error deleting story:', error);
+        // Use appropriate alert for error
+        if (Platform.OS === 'web') {
+          window.alert('Failed to delete story');
+        } else {
+          Alert.alert('Error', 'Failed to delete story');
+        }
       }
-      
-      Alert.alert('Success', 'Story deleted successfully');
-    } catch (error) {
-      console.error('Error deleting story:', error);
-      Alert.alert('Error', 'Failed to delete story');
+    };
+
+    // --- Confirmation Logic ---
+
+    // ✅ Web confirmation
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        `Are you sure you want to delete the story "${storyTitle}"? This will delete all its chapters and cannot be undone.`
+      );
+      if (confirmed) {
+        deleteStoryItem(); // Call the helper function if confirmed
+      } else {
+        console.log('Story deletion cancelled');
+      }
+      return;
     }
+
+    // ✅ Native confirmation
+    Alert.alert(
+      'Confirm Deletion',
+      `Are you sure you want to delete the story "${storyTitle}"? This will delete all its chapters and cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => console.log('Story deletion cancelled') },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: deleteStoryItem, // Call the helper function on press
+        },
+      ]
+    );
   };
+  // *** END OF MODIFIED FUNCTION ***
 
   const handleDeleteChapter = async () => {
     console.log('Delete chapter button pressed');
@@ -706,29 +862,75 @@ const FlowAdminPanel = () => {
     }
   };
 
-  const handleDeleteVocab = async (index: number) => {
+  // *** VERSION WITH PLATFORM CHECK ***
+  const handleDeleteVocab = (index: number) => {
     if (!selectedStory || !selectedChapter) return;
-    
-    try {
-      const updatedChapters = selectedStory.chapters.map(ch => 
-        ch.id === selectedChapter.id 
-          ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
-          : ch
-      );
-      
-      await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
-      
-      // Update local state
-      setSelectedStory({ ...selectedStory, chapters: updatedChapters });
-      const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
-      setSelectedChapter(updatedChapter || null);
-      
-      Alert.alert('Success', 'Vocabulary word deleted');
-    } catch (error) {
-      console.error('Error deleting vocabulary:', error);
-      Alert.alert('Error', 'Failed to delete vocabulary');
+
+    const wordToDelete = selectedChapter.vocabulary?.[index]?.word || 'this word';
+
+    // Helper function to actually perform deletion
+    const deleteVocabItem = async () => {
+      if (!selectedStory || !selectedChapter) return; // Re-check inside async func
+
+      try {
+        const updatedChapters = selectedStory.chapters.map(ch =>
+          ch.id === selectedChapter.id
+            ? { ...ch, vocabulary: (ch.vocabulary || []).filter((_, i) => i !== index) }
+            : ch
+        );
+
+        await updateDoc(doc(db, 'flowStories', selectedStory.id), { chapters: updatedChapters });
+
+        setSelectedStory({ ...selectedStory, chapters: updatedChapters });
+        const updatedChapter = updatedChapters.find(c => c.id === selectedChapter.id);
+        setSelectedChapter(updatedChapter || null);
+
+        // Use appropriate alert for success
+        if (Platform.OS === 'web') {
+          window.alert(`"${wordToDelete}" has been removed.`);
+        } else {
+          Alert.alert('Deleted', `"${wordToDelete}" has been removed.`);
+        }
+
+      } catch (error) {
+        console.error('Error deleting vocabulary:', error);
+        // Use appropriate alert for error
+         if (Platform.OS === 'web') {
+          window.alert('Failed to delete vocabulary');
+        } else {
+          Alert.alert('Error', 'Failed to delete vocabulary');
+        }
+      }
+    };
+
+    // --- Confirmation Logic ---
+
+    // ✅ Web confirmation
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`);
+      if (confirmed) {
+        deleteVocabItem(); // Call helper if confirmed
+      } else {
+         console.log('Vocab delete cancelled');
+      }
+      return;
     }
+
+    // ✅ Native confirmation
+    Alert.alert(
+      'Confirm Deletion',
+      `Are you sure you want to delete "${wordToDelete}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => console.log('Vocab delete cancelled') },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: deleteVocabItem, // Call helper on press
+        },
+      ]
+    );
   };
+  // *** END OF VERSION WITH PLATFORM CHECK ***
 
   const handleStartEditVocab = (index: number, vocabItem: any) => {
     setEditingVocabIndex(index);
@@ -809,7 +1011,7 @@ const FlowAdminPanel = () => {
         pushIf('C', q.incorrectAnswer2, false);
         pushIf('D', q.incorrectAnswer3, false);
         lines.push(`${qi + 1}. ${q.npcSentence}`);
-        opts.forEach(o => lines.push(`   ${o.label}) ${o.text} ${o.correct ? '[✓]' : ''}`));
+        opts.forEach(o => lines.push(`    ${o.label}) ${o.text} ${o.correct ? '[✓]' : ''}`));
         lines.push('');
       });
       lines.push('');
@@ -826,7 +1028,24 @@ const FlowAdminPanel = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      <Text style={{ color: theme.primaryText, fontSize: getScaled(24), fontWeight: 'bold', textAlign: 'center', marginBottom: 12 }}>Flow Admin Panel</Text>
+      <View style={styles.headerContainer}>
+        <Text style={{ color: theme.primaryText, fontSize: getScaled(24), fontWeight: 'bold', textAlign: 'center', marginBottom: 12 }}>Flow Admin Panel</Text>
+        <TouchableOpacity 
+          style={styles.messageButton}
+          onPress={() => {
+            navigation.navigate('Messages' as never);
+          }}
+        >
+          <Text style={styles.messageButtonText}>💬 Messages</Text>
+          {pendingMessagesCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationText}>
+                {pendingMessagesCount > 99 ? '99+' : pendingMessagesCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.content}> 
         {/* Left Panel */}
@@ -866,13 +1085,13 @@ const FlowAdminPanel = () => {
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                 <Text style={{ color: theme.primaryText, fontWeight: '600' }}>Active</Text>
                 <Switch value={storyActiveEdit} onValueChange={(v)=>{ setStoryActiveEdit(v); }} trackColor={{ false: theme.borderColor, true: theme.primary }} />
-          </View>
+              </View>
               <View style={styles.buttonRow}>
                 <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={saveStoryDetails}><Text style={styles.buttonText}>Save Story</Text></TouchableOpacity>
                 <TouchableOpacity style={[styles.button, { backgroundColor: storyActiveEdit ? theme.warning : theme.success }]} onPress={() => selectedStory && handleToggleStoryActive(selectedStory)}>
                   <Text style={styles.buttonText}>{selectedStory?.active ? 'Deactivate' : 'Activate'}</Text>
-            </TouchableOpacity>
-            </View>
+                </TouchableOpacity>
+              </View>
 
               <View style={styles.divider} />
 
@@ -882,24 +1101,59 @@ const FlowAdminPanel = () => {
 
               <View style={styles.divider} />
 
+              <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Add Bulk Chapters</Text>
+              <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkChapters(!showBulkChapters)}>
+                <Text style={styles.buttonText}>{showBulkChapters ? 'Hide' : 'Show'} Bulk Chapters</Text>
+              </TouchableOpacity>
+              {showBulkChapters && (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>
+                    Format:{'\n'}
+                    {'<Chapter 1 - Chapter Name>'}
+                    {'\n---npc sentence---correct answer---incorrect answer---incorrect answer2---incorrect answer3--- /'}
+                    {'\n---npc sentence---correct answer---incorrect answer---incorrect answer2---incorrect answer3--- /'}
+                    {'\n\n<Chapter 2 - Chapter Name>'}
+                    {'\n---npc sentence---correct answer---incorrect answer---incorrect answer2---incorrect answer3--- /'}
+                  </Text>
+                  <TextInput 
+                    style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 200 }]} 
+                    value={bulkChaptersText} 
+                    onChangeText={setBulkChaptersText} 
+                    placeholder="Paste chapters..." 
+                    placeholderTextColor={theme.secondaryText} 
+                    multiline 
+                    numberOfLines={10} 
+                  />
+                  <TouchableOpacity 
+                    style={[styles.button, { backgroundColor: selectedStory ? theme.success : theme.secondaryText }]} 
+                    disabled={!selectedStory} 
+                    onPress={handleBulkAddChapters}
+                  >
+                    <Text style={styles.buttonText}>Add Chapters</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={styles.divider} />
+
               <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Upload Dialogues</Text>
               <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkUpload(!showBulkUpload)}>
                 <Text style={styles.buttonText}>{showBulkUpload ? 'Hide' : 'Show'} Bulk Upload</Text>
-          </TouchableOpacity>
+              </TouchableOpacity>
           {showBulkUpload && (
             <View style={{ marginTop: 12 }}>
               <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Format: ---npc sentence---correct answer---incorrect answer---incorrect answer2---incorrect answer3--- /</Text>
                   <TextInput style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 160 }]} value={bulkDialogues} onChangeText={setBulkDialogues} placeholder="Paste dialogues..." placeholderTextColor={theme.secondaryText} multiline numberOfLines={8} />
                   <TouchableOpacity style={[styles.button, { backgroundColor: selectedChapter ? theme.success : theme.secondaryText }]} disabled={!selectedChapter} onPress={handleBulkUploadDialogues}><Text style={styles.buttonText}>Upload Dialogues</Text></TouchableOpacity>
-        </View>
-      )}
+            </View>
+        )}
 
               <View style={styles.divider} />
 
               <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Add Vocabulary</Text>
               <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkVocab(!showBulkVocab)}>
                 <Text style={styles.buttonText}>{showBulkVocab ? 'Hide' : 'Show'} Bulk Vocabulary</Text>
-          </TouchableOpacity>
+              </TouchableOpacity>
           {showBulkVocab && (
             <View style={{ marginTop: 12 }}>
                   <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Format: word---type---definition---example1---example2---equivalent /</Text>
@@ -916,7 +1170,7 @@ const FlowAdminPanel = () => {
               <View style={styles.row}>
                 <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={level} onChangeText={setLevel} placeholder="Easy | Medium | Hard" placeholderTextColor={theme.secondaryText} />
                 <TextInput style={[styles.input, { flex: 1, backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={emoji} onChangeText={setEmoji} placeholder="📘" placeholderTextColor={theme.secondaryText} />
-            </View>
+              </View>
               <TextInput style={[styles.input, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={imageUrl} onChangeText={setImageUrl} placeholder="https://..." placeholderTextColor={theme.secondaryText} />
               <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={handleCreateStory}><Text style={styles.buttonText}>Create Story</Text></TouchableOpacity>
             </>
@@ -932,31 +1186,32 @@ const FlowAdminPanel = () => {
                 <View style={styles.storyHeader}>
                   {(s.imageUrl || (s.emoji && s.emoji.startsWith('http'))) ? (
                     <Image source={{ uri: s.imageUrl || s.emoji }} style={styles.storyImage} />
-                                      ) : (
-                      <Text style={[styles.storyEmoji]}>{s.emoji}</Text>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.storyTitle, { color: selectedStory?.id === s.id ? '#fff' : theme.primaryText }]}>{s.title}</Text>
-                      <Text style={[styles.storyLevel, { color: selectedStory?.id === s.id ? '#fff' : theme.secondaryText }]}>{s.level}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.primary }]} onPress={(e) => { e.stopPropagation(); setSelectedStory(s); }}><Text style={styles.smallBtnText}>Edit</Text></TouchableOpacity>
-                      <TouchableOpacity style={[styles.smallBtn, { backgroundColor: s.active ? theme.success : theme.warning }]} onPress={(e) => { e.stopPropagation(); handleToggleStoryActive(s); }}>
-                        <Text style={styles.smallBtnText}>{s.active ? 'Active' : 'Inactive'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.smallBtn, { backgroundColor: theme.error, minWidth: 60 }]} 
-                        onPress={(e) => { 
-                          e.stopPropagation(); 
-                          console.log('Delete story button clicked for:', s.title);
-                          handleDeleteStory(s); 
-                        }}
-                      >
-                        <Text style={styles.smallBtnText}>Delete</Text>
-                      </TouchableOpacity>
-                    </View>
+                              ) : (
+                    <Text style={[styles.storyEmoji]}>{s.emoji}</Text>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.storyTitle, { color: selectedStory?.id === s.id ? '#fff' : theme.primaryText }]}>{s.title}</Text>
+                    <Text style={[styles.storyLevel, { color: selectedStory?.id === s.id ? '#fff' : theme.secondaryText }]}>{s.level}</Text>
                   </View>
-                </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: theme.primary }]} onPress={(e) => { e.stopPropagation(); setSelectedStory(s); }}><Text style={styles.smallBtnText}>Edit</Text></TouchableOpacity>
+                    <TouchableOpacity style={[styles.smallBtn, { backgroundColor: s.active ? theme.success : theme.warning }]} onPress={(e) => { e.stopPropagation(); handleToggleStoryActive(s); }}>
+                      <Text style={styles.smallBtnText}>{s.active ? 'Active' : 'Inactive'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.smallBtn, { backgroundColor: theme.error, minWidth: 60 }]} 
+                      onPress={(e) => { 
+                        e.stopPropagation(); 
+                        console.log('Delete story button clicked for:', s.title);
+                        // *** CALL THE UPDATED FUNCTION ***
+                        handleDeleteStory(s); 
+                      }}
+                    >
+                      <Text style={styles.smallBtnText}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
 
@@ -1511,6 +1766,50 @@ const styles = StyleSheet.create({
   chapterTitle: { fontWeight: 'bold' },
   questionCard: { padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 10 },
   questionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 8,
+  },
+  messageButton: {
+    position: 'relative',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#1976D2',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  messageButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
 });
 
-export default FlowAdminPanel; 
+export default FlowAdminPanel;
