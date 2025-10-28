@@ -19,10 +19,12 @@
     "eas-cli": "^16.17.4",
     "expo": "~53.0.20",
     "expo-auth-session": "~6.2.1",
+    "expo-dev-client": "~5.2.4",
     "expo-device": "^7.1.4",
     "expo-haptics": "^14.1.4",
     "expo-notifications": "^0.31.4",
     "expo-status-bar": "~2.2.3",
+    "expo-updates": "~0.28.17",
     "expo-web-browser": "~14.2.0",
     "firebase": "^12.0.0",
     "react": "19.0.0",
@@ -32,9 +34,7 @@
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
-    "react-native-web": "^0.20.0",
-    "expo-dev-client": "~5.2.4",
-    "expo-updates": "~0.28.17"
+    "react-native-web": "^0.20.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
