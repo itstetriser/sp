@@ -1,13 +1,27 @@
 import { useNavigation } from '@react-navigation/native';
-import * as Google from 'expo-auth-session/providers/google';
 import * as Haptics from 'expo-haptics';
-import * as WebBrowser from 'expo-web-browser';
-import { GoogleAuthProvider, sendPasswordResetEmail, signInWithCredential, signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
-import React, { useRef, useState } from 'react';
-import { Alert, Button, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { auth } from '../firebase';
-import { useTheme } from '../ThemeContext';
+import { 
+  signInWithEmailAndPassword, 
+  GoogleAuthProvider, 
+  signInWithCredential
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore'; // Import getDoc and setDoc
+import React, { useRef, useState, useEffect } from 'react';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View, Platform } from 'react-native';
+import { auth, db } from '../firebase'; // Make sure this path is correct
+import { useTheme } from '../ThemeContext'; // Make sure this path is correct
 
+// --- New Imports for Universal Google Sign-In ---
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+// Make sure to add your Expo Go or development client IDs if you're using them
+// npx expo prebuild (after installing expo-dev-client)
+// You can get these from your Google Cloud Console
+// For a production web-only app, you just need the webClientId.
+const webClientId = 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com'; // ⚠️ !! REPLACE THIS !!
+// ---
+
+// This is required for expo-auth-session to work on web
 WebBrowser.maybeCompleteAuthSession();
 
 const SignInScreen = () => {
@@ -16,18 +30,67 @@ const SignInScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [loginError, setLoginError] = useState('');
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  
+  // --- Universal Google Sign-In Setup ---
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: webClientId,
+    // Add these if you are testing on native (iOS/Android)
+    // iosClientId: 'YOUR_GOOGLE_IOS_CLIENT_ID',
+    // androidClientId: 'YOUR_GOOGLE_ANDROID_CLIENT_ID',
+  });
+
+  // This effect handles the response from Google
+  useEffect(() => {
+    if (response?.type === 'success') {
+      setGoogleLoading(true);
+      const { id_token } = response.params;
+      const credential = GoogleAuthProvider.credential(id_token);
+      
+      signInWithCredential(auth, credential)
+        .then(async (userCredential) => {
+          const user = userCredential.user;
+
+          // --- This is your existing Firestore logic ---
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (!userDoc.exists()) {
+            try {
+              await setDoc(userDocRef, {
+                email: user.email,
+                displayName: user.displayName,
+                photoURL: user.photoURL,
+                isPro: false,
+                hearts: 5,
+                lastHeartRefillTimestamp: new Date().toISOString(),
+                superpowers: { removeTwo: 3, secondChance: 3 },
+                progress: { day1_stars: 0 },
+                lastPlayed: new Date().toISOString(),
+              });
+            } catch (firestoreError: any) {
+              Alert.alert('Firestore Error', firestoreError.message);
+            }
+          }
+          // --- End of Firestore Logic ---
+        })
+        .catch((error) => {
+          Alert.alert('Google Sign-In Error', error.message);
+        })
+        .finally(() => {
+          setGoogleLoading(false);
+        });
+    } else if (response?.type === 'error') {
+      Alert.alert('Google Sign-In Error', response.error?.message || 'An unknown error occurred.');
+      setGoogleLoading(false);
+    }
+  }, [response]);
+  // --- End of Universal Google Sign-In ---
+
 
   // Refs for keyboard navigation
   const emailInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
-  const resetEmailInputRef = useRef<TextInput>(null);
 
   // Keyboard navigation handlers
   const handleEmailSubmit = () => {
@@ -35,103 +98,35 @@ const SignInScreen = () => {
   };
 
   const handlePasswordSubmit = () => {
-    handleSignIn();
+    handleEmailSignIn();
   };
 
-  const handleResetEmailSubmit = () => {
-    handleForgotPassword();
-  };
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
-    webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
-    // Optionally add expoClientId if using Expo Go
-  });
-
-  React.useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      const credential = GoogleAuthProvider.credential(id_token);
-      signInWithCredential(auth, credential).catch((error) => {
-        setLoginError(error.message);
-      });
+  // --- Email Sign-In ---
+  const handleEmailSignIn = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password.');
+      return;
     }
-  }, [response]);
-
-  
-
-  const handleSignIn = async () => {
     setLoading(true);
-    setLoginError(''); // Clear previous errors
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Navigation to main app handled by auth state in App.tsx
+      // Navigation handled by auth state in App.tsx
     } catch (error: any) {
-      console.log('Sign in error:', error.code, error.message);
-      // Convert Firebase error codes to user-friendly messages
-      let errorMessage = 'An error occurred. Please try again.';
-      
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'No account found with this email address.';
-          break;
-        case 'auth/wrong-password':
-          errorMessage = 'Incorrect password. Please try again.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Please enter a valid email address.';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many failed attempts. Please try again later.';
-          break;
-        case 'auth/user-disabled':
-          errorMessage = 'This account has been disabled.';
-          break;
-        case 'auth/invalid-credential':
-          errorMessage = 'Invalid email or password. Please check your credentials.';
-          break;
-        default:
-          errorMessage = error.message;
-      }
-      
-      setLoginError(errorMessage);
+      Alert.alert('Sign In Error', error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (!resetEmail.trim()) {
-      Alert.alert('Error', 'Please enter your email address');
-      return;
-    }
-
-    console.log('Attempting to send password reset email to:', resetEmail);
-    setResetLoading(true);
-    try {
-      await sendPasswordResetEmail(auth, resetEmail.trim());
-      console.log('Password reset email sent successfully');
-      setEmailSent(true);
-    } catch (error: any) {
-      console.log('Password reset error:', error);
-      Alert.alert('Reset Password Error', error.message);
-    } finally {
-      setResetLoading(false);
-    }
-  };
-
-  const closeForgotPasswordModal = () => {
-    setShowForgotPassword(false);
-    setResetEmail('');
-    setEmailSent(false);
+  // --- Google Sign-In (Now just triggers the hook) ---
+  const handleGoogleSignIn = () => {
+    setGoogleLoading(true);
+    promptAsync(); // This will now work on web, mobile web, and native
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.backgroundColor }]}> 
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <Text style={[styles.title, { color: theme.primaryText }]}>Sign In</Text>
-
-      
-
       <TextInput
         style={[styles.input, { backgroundColor: theme.cardColor, borderColor: theme.borderColor, color: theme.primaryText }]}
         placeholder="Email"
@@ -156,46 +151,34 @@ const SignInScreen = () => {
         returnKeyType="done"
       />
       
-      {loginError ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{loginError}</Text>
-        </View>
-      ) : null}
-
-      <TouchableOpacity 
-        style={[styles.button, { backgroundColor: theme.primary }]} 
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: theme.primary }]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          handleSignIn();
+          handleEmailSignIn();
         }}
-        disabled={loading}
+        disabled={loading || googleLoading}
       >
         <Text style={[styles.buttonText, { color: '#fff' }]}>{loading ? 'Signing In...' : 'Sign In'}</Text>
       </TouchableOpacity>
-      
-      <View style={{ height: 12 }} />
-      {/* Google Sign-In Button */}
-      <Button
-        title="Sign in with Google"
-        color="#4285F4"
+
+      {/* --- Google Sign-In Button --- */}
+      <TouchableOpacity
+        style={[styles.googleButton, { borderColor: theme.borderColor }]}
         onPress={() => {
-          if (Platform.OS === 'web') {
-            const provider = new GoogleAuthProvider();
-            signInWithPopup(auth, provider).catch((error) => {
-              setLoginError(error.message);
-            });
-          } else {
-            promptAsync();
-          }
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          handleGoogleSignIn();
         }}
-      />
-      
-      <TouchableOpacity onPress={() => setShowForgotPassword(true)} style={styles.link}>
-        <Text style={styles.linkText}>Forgot Password?</Text>
+        disabled={loading || googleLoading || !request}
+      >
+        {/* <FontAwesome name="google" size={20} color={theme.primaryText} style={{ marginRight: 12 }} /> */}
+        <Text style={[styles.googleButtonText, { color: theme.primaryText }]}>
+          {googleLoading ? 'Signing In...' : 'Sign In with Google'}
+        </Text>
       </TouchableOpacity>
       
-      <TouchableOpacity 
-        style={styles.linkButton} 
+      <TouchableOpacity
+        style={styles.linkButton}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           navigation.navigate('SignUp' as never);
@@ -203,137 +186,19 @@ const SignInScreen = () => {
       >
         <Text style={[styles.linkText, { color: theme.primary }]}>Don't have an account? Sign Up</Text>
       </TouchableOpacity>
-
-      {/* Forgot Password Modal */}
-      <Modal
-        visible={showForgotPassword}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowForgotPassword(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.cardColor }]}>
-            <Text style={[styles.modalTitle, { color: theme.primaryText }]}>Reset Password</Text>
-            
-            {!emailSent ? (
-              <>
-                <Text style={[styles.modalText, { color: theme.primaryText }]}>
-                  Enter your email address and we'll send you a link to reset your password.
-                </Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: theme.backgroundColor, borderColor: theme.borderColor, color: theme.primaryText }]}
-                  placeholder="Email"
-                  placeholderTextColor={theme.secondaryText}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  value={resetEmail}
-                  onChangeText={setResetEmail}
-                  ref={resetEmailInputRef}
-                  onSubmitEditing={handleResetEmailSubmit}
-                  returnKeyType="done"
-                />
-                <View style={styles.modalButtons}>
-                  <Button
-                    title="Cancel"
-                    onPress={closeForgotPasswordModal}
-                    color="#666"
-                  />
-                  <View style={{ width: 16 }} />
-                  <Button
-                    title={resetLoading ? 'Sending...' : 'Send Reset Email'}
-                    onPress={handleForgotPassword}
-                    disabled={resetLoading}
-                  />
-                </View>
-              </>
-            ) : (
-              <>
-                <Text style={styles.successIcon}>✅</Text>
-                <Text style={styles.successTitle}>Email Sent!</Text>
-                <Text style={styles.modalText}>
-                  A password reset email has been sent to {resetEmail}. Check your inbox and follow the instructions to reset your password.
-                </Text>
-                <Button
-                  title="OK"
-                  onPress={closeForgotPasswordModal}
-                  color="#4CAF50"
-                />
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 24 },
   input: { width: '100%', maxWidth: 320, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, marginBottom: 12 },
-  link: { marginTop: 16 },
-  linkText: { color: '#007bff' },
-  errorContainer: {
-    backgroundColor: '#ffebee',
-    borderColor: '#f44336',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    width: '100%',
-    maxWidth: 320,
-  },
-  errorText: {
-    color: '#d32f2f',
-    textAlign: 'center',
-    fontSize: 14,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    padding: 24,
-    borderRadius: 16,
-    width: '90%',
-    maxWidth: 400,
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  modalText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#666',
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 12,
-  },
-  successIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  successTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: '#4CAF50',
-  },
   button: {
     width: '100%',
     maxWidth: 320,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
     borderRadius: 8,
+    padding: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -342,9 +207,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  googleButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
   linkButton: {
     marginTop: 16,
+  },
+  linkText: {
+    fontSize: 16,
   },
 });
 
 export default SignInScreen;
+
