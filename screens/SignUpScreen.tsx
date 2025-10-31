@@ -18,7 +18,7 @@ import * as Google from 'expo-auth-session/providers/google';
 // npx expo prebuild (after installing expo-dev-client)
 // You can get these from your Google Cloud Console
 // For a production web-only app, you just need the webClientId.
-const webClientId = '434434149946-hp99c5ji4ln24s0r0775rqms9maj5pju.apps.googleusercontent.com.apps.googleusercontent.com'; // ⚠️ !! REPLACE THIS !!
+const webClientId = '434434149946-hp99c5ji4ln24s0r0775rqms9maj5pju.apps.googleusercontent.com'; // ⚠️ !! REPLACE THIS !!
 // ---
 
 // This is required for expo-auth-session to work on web
