@@ -51,13 +51,19 @@ const FlowAdminPanel = () => {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [bulkDialogues, setBulkDialogues] = useState('');
 
-  // bulk vocab
+  // bulk vocab (for selected chapter)
   const [showBulkVocab, setShowBulkVocab] = useState(false);
   const [bulkVocabText, setBulkVocabText] = useState('');
 
   // bulk chapters
   const [showBulkChapters, setShowBulkChapters] = useState(false);
   const [bulkChaptersText, setBulkChaptersText] = useState('');
+
+  // *** NEW STATE ***
+  // bulk vocab (for multiple chapters by name)
+  const [showBulkVocabChapters, setShowBulkVocabChapters] = useState(false);
+  const [bulkVocabChaptersText, setBulkVocabChaptersText] = useState('');
+  // *** END NEW STATE ***
 
   // story edit state
   const [storyTitleEdit, setStoryTitleEdit] = useState('');
@@ -352,6 +358,7 @@ const FlowAdminPanel = () => {
     }
   };
 
+  // This function adds vocab to the *currently selected* chapter
   const handleBulkAddVocab = async () => {
     const story = selectedStory; const chapter = selectedChapter;
     if (!story || !chapter) { Alert.alert('Select story/chapter'); return; }
@@ -373,6 +380,89 @@ const FlowAdminPanel = () => {
       console.error(e); Alert.alert('Error', 'Failed to add vocab');
     }
   };
+
+  // *** NEW FUNCTION ***
+  // This function adds vocab to *multiple chapters* based on chapter names in the text
+  const handleBulkAddVocabToChapters = async () => {
+    const story = selectedStory;
+    if (!story) { Alert.alert('Select a story first'); return; }
+    if (!bulkVocabChaptersText.trim()) { Alert.alert('Enter text'); return; }
+
+    try {
+      // Split by chapter headers
+      const chapterBlocks = bulkVocabChaptersText.split(/<Chapter \d+ - .*?>/).filter(block => block.trim());
+      const chapterHeaders = bulkVocabChaptersText.match(/<Chapter \d+ - .*?>/g) || [];
+      
+      if (chapterBlocks.length === 0 || chapterHeaders.length === 0) {
+        Alert.alert('No valid chapter blocks found', 'Format: <Chapter 1 - Title> ...vocab... / ...vocab... /');
+        return;
+      }
+      
+      const updatedChapters = [...(story.chapters || [])];
+      let chaptersUpdatedCount = 0;
+      let vocabAddedCount = 0;
+
+      for (let i = 0; i < chapterBlocks.length; i++) {
+        const block = chapterBlocks[i].trim();
+        const header = chapterHeaders[i];
+        
+        if (!block || !header) continue;
+        
+        // Extract chapter title from header
+        const titleMatch = header.match(/<Chapter \d+ - (.*?)>/);
+        const chapterTitle = titleMatch ? titleMatch[1].trim() : null;
+        
+        if (!chapterTitle) {
+          console.warn('Could not parse title from header:', header);
+          continue;
+        }
+
+        // Find the chapter in the story
+        const chapterIndex = updatedChapters.findIndex(ch => ch.title.trim() === chapterTitle);
+        
+        if (chapterIndex === -1) {
+          console.warn(`Chapter not found: "${chapterTitle}"`);
+          continue;
+        }
+
+        // Parse vocabulary items from the block
+        const vocabBlocks = block.split('/').map(b => b.trim()).filter(Boolean);
+        const vocabItems = vocabBlocks.map(b => {
+          const parts = b.split('---').map(p => p.trim()).filter(Boolean);
+          if (parts.length < 6) return null;
+          return { word: parts[0], type: parts[1], definition: parts[2], example1: parts[3], example2: parts[4], equivalent: parts[5] };
+        }).filter(Boolean) as any[];
+
+        if (vocabItems.length > 0) {
+          const targetChapter = updatedChapters[chapterIndex];
+          const newVocabulary = [...(targetChapter.vocabulary || []), ...vocabItems];
+          updatedChapters[chapterIndex] = { ...targetChapter, vocabulary: newVocabulary };
+          
+          chaptersUpdatedCount++;
+          vocabAddedCount += vocabItems.length;
+        }
+      }
+      
+      if (chaptersUpdatedCount > 0) {
+        await updateDoc(doc(db, 'flowStories', story.id), { chapters: updatedChapters });
+        
+        setBulkVocabChaptersText('');
+        setShowBulkVocabChapters(false);
+        await fetchStories(); // Refresh data
+        
+        const refreshed = (await getDocs(collection(db, 'flowStories'))).docs.map(d => ({ id: d.id, ...(d.data() as any) })) as FlowStory[];
+        setSelectedStory(refreshed.find(s => s.id === story.id) || null);
+
+        Alert.alert('Success', `Added ${vocabAddedCount} vocab items to ${chaptersUpdatedCount} chapters`);
+      } else {
+        Alert.alert('No Changes', 'No matching chapters found or no valid vocab provided.');
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to add vocabulary');
+    }
+  };
+  // *** END NEW FUNCTION ***
 
   const handleBulkAddChapters = async () => {
     const story = selectedStory;
@@ -1079,7 +1169,7 @@ const FlowAdminPanel = () => {
                   <Text style={[styles.label, { color: theme.primaryText }]}>Emoji</Text>
                   <TextInput style={[styles.input, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={storyEmojiEdit} onChangeText={setStoryEmojiEdit} placeholder="📘" placeholderTextColor={theme.secondaryText} />
       </View>
-      </View>
+    </View>
               <Text style={[styles.label, { color: theme.primaryText }]}>Image URL</Text>
               <TextInput style={[styles.input, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor }]} value={storyImageUrlEdit} onChangeText={setStoryImageUrlEdit} placeholder="https://..." placeholderTextColor={theme.secondaryText} />
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
@@ -1136,31 +1226,68 @@ const FlowAdminPanel = () => {
 
               <View style={styles.divider} />
 
-              <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Upload Dialogues</Text>
-              <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkUpload(!showBulkUpload)}>
-                <Text style={styles.buttonText}>{showBulkUpload ? 'Hide' : 'Show'} Bulk Upload</Text>
+              {/* *** NEW SECTION *** */}
+              <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Add Bulk Vocab to Chapters</Text>
+              <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkVocabChapters(!showBulkVocabChapters)}>
+                <Text style={styles.buttonText}>{showBulkVocabChapters ? 'Hide' : 'Show'} Bulk Vocab</Text>
               </TouchableOpacity>
-          {showBulkUpload && (
-            <View style={{ marginTop: 12 }}>
-              <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Format: ---npc sentence---correct answer---incorrect answer---incorrect answer2---incorrect answer3--- /</Text>
-                  <TextInput style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 160 }]} value={bulkDialogues} onChangeText={setBulkDialogues} placeholder="Paste dialogues..." placeholderTextColor={theme.secondaryText} multiline numberOfLines={8} />
-                  <TouchableOpacity style={[styles.button, { backgroundColor: selectedChapter ? theme.success : theme.secondaryText }]} disabled={!selectedChapter} onPress={handleBulkUploadDialogues}><Text style={styles.buttonText}>Upload Dialogues</Text></TouchableOpacity>
-            </View>
-        )}
+              {showBulkVocabChapters && (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>
+                    Format (finds chapters by name):{'\n'}
+                    {'<Chapter 1 - Chapter Name>'}
+                    {'\nword---type---def---ex1---ex2---eq /'}
+                    {'\nword---type---def---ex1---ex2---eq /'}
+                    {'\n\n<Chapter 2 - Another Chapter>'}
+                    {'\nword---type---def---ex1---ex2---eq /'}
+                  </Text>
+                  <TextInput 
+                    style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 200 }]} 
+                    value={bulkVocabChaptersText} 
+                    onChangeText={setBulkVocabChaptersText} 
+                    placeholder="Paste vocab for chapters..." 
+                    placeholderTextColor={theme.secondaryText} 
+                    multiline 
+                    numberOfLines={10} 
+                  />
+                  <TouchableOpacity 
+                    style={[styles.button, { backgroundColor: selectedStory ? theme.success : theme.secondaryText }]} 
+                    disabled={!selectedStory} 
+                    onPress={handleBulkAddVocabToChapters}
+                  >
+                    <Text style={styles.buttonText}>Add Vocab to Chapters</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {/* *** END NEW SECTION *** */}
 
               <View style={styles.divider} />
 
-              <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Add Vocabulary</Text>
+              <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Upload Dialogues (Selected Chapter)</Text>
+              <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkUpload(!showBulkUpload)}>
+                <Text style={styles.buttonText}>{showBulkUpload ? 'Hide' : 'Show'} Bulk Upload</Text>
+              </TouchableOpacity>
+      {showBulkUpload && (
+        <View style={{ marginTop: 12 }}>
+          <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Format: ---npc sentence---correct answer---incorrect answer---incorrect answer2---incorrect answer3--- /</Text>
+                <TextInput style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 160 }]} value={bulkDialogues} onChangeText={setBulkDialogues} placeholder="Paste dialogues..." placeholderTextColor={theme.secondaryText} multiline numberOfLines={8} />
+                <TouchableOpacity style={[styles.button, { backgroundColor: selectedChapter ? theme.success : theme.secondaryText }]} disabled={!selectedChapter} onPress={handleBulkUploadDialogues}><Text style={styles.buttonText}>Upload Dialogues</Text></TouchableOpacity>
+        </View>
+    )}
+
+              <View style={styles.divider} />
+
+              <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Add Vocabulary (Selected Chapter)</Text>
               <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkVocab(!showBulkVocab)}>
                 <Text style={styles.buttonText}>{showBulkVocab ? 'Hide' : 'Show'} Bulk Vocabulary</Text>
               </TouchableOpacity>
-          {showBulkVocab && (
-            <View style={{ marginTop: 12 }}>
-                  <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Format: word---type---definition---example1---example2---equivalent /</Text>
-                  <TextInput style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 160 }]} value={bulkVocabText} onChangeText={setBulkVocabText} placeholder="Paste vocabulary..." placeholderTextColor={theme.secondaryText} multiline numberOfLines={8} />
-                  <TouchableOpacity style={[styles.button, { backgroundColor: selectedChapter ? theme.success : theme.secondaryText }]} disabled={!selectedChapter} onPress={handleBulkAddVocab}><Text style={styles.buttonText}>Add Vocabulary</Text></TouchableOpacity>
-                </View>
-              )}
+      {showBulkVocab && (
+        <View style={{ marginTop: 12 }}>
+                <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Format: word---type---definition---example1---example2---equivalent /</Text>
+                <TextInput style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 160 }]} value={bulkVocabText} onChangeText={setBulkVocabText} placeholder="Paste vocabulary..." placeholderTextColor={theme.secondaryText} multiline numberOfLines={8} />
+                <TouchableOpacity style={[styles.button, { backgroundColor: selectedChapter ? theme.success : theme.secondaryText }]} disabled={!selectedChapter} onPress={handleBulkAddVocab}><Text style={styles.buttonText}>Add Vocabulary</Text></TouchableOpacity>
+              </View>
+            )}
             </>
           ) : (
             <>
@@ -1186,7 +1313,7 @@ const FlowAdminPanel = () => {
                 <View style={styles.storyHeader}>
                   {(s.imageUrl || (s.emoji && s.emoji.startsWith('http'))) ? (
                     <Image source={{ uri: s.imageUrl || s.emoji }} style={styles.storyImage} />
-                              ) : (
+                                  ) : (
                     <Text style={[styles.storyEmoji]}>{s.emoji}</Text>
                   )}
                   <View style={{ flex: 1 }}>
