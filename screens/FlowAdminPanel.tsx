@@ -63,11 +63,11 @@ const FlowAdminPanel = () => {
   const [showBulkVocabChapters, setShowBulkVocabChapters] = useState(false);
   const [bulkVocabChaptersText, setBulkVocabChaptersText] = useState('');
 
-  // *** NEW STATE ***
-  // bulk background
-  const [showBulkBackground, setShowBulkBackground] = useState(false);
-  const [bulkBackgroundText, setBulkBackgroundText] = useState('');
-  // *** END NEW STATE ***
+  // *** UPDATED STATE ***
+  // bulk background (for multiple chapters by name)
+  const [showBulkBackgrounds, setShowBulkBackgrounds] = useState(false);
+  const [bulkBackgroundsText, setBulkBackgroundsText] = useState('');
+  // *** END UPDATED STATE ***
 
   // story edit state
   const [storyTitleEdit, setStoryTitleEdit] = useState('');
@@ -466,41 +466,79 @@ const FlowAdminPanel = () => {
     }
   };
 
-  // *** NEW FUNCTION ***
-  const handleBulkAddBackground = async () => {
+  // *** UPDATED FUNCTION ***
+  // This function adds different backgrounds to *multiple chapters* based on chapter names
+  const handleBulkAddBackgrounds = async () => {
     const story = selectedStory;
     if (!story) { Alert.alert('Select a story first'); return; }
-    if (!bulkBackgroundText.trim()) { Alert.alert('Enter background text'); return; }
+    if (!bulkBackgroundsText.trim()) { Alert.alert('Enter text'); return; }
 
     try {
-      const background = bulkBackgroundText.trim();
-      const updatedChapters = story.chapters.map(ch => ({
-        ...ch,
-        background: background,
-      }));
-
-      await updateDoc(doc(db, 'flowStories', story.id), { chapters: updatedChapters });
-
-      // Update local state
-      const updatedStory = { ...story, chapters: updatedChapters };
-      setSelectedStory(updatedStory);
-      setStories(prev => prev.map(s => (s.id === updatedStory.id ? updatedStory : s)));
-      if (selectedChapter) {
-        const updatedChapter = updatedStory.chapters.find(c => c.id === selectedChapter.id) || null;
-        setSelectedChapter(updatedChapter);
+      // Split by chapter headers
+      const chapterBlocks = bulkBackgroundsText.split(/<Chapter \d+ - .*?>/).filter(block => block.trim());
+      const chapterHeaders = bulkBackgroundsText.match(/<Chapter \d+ - .*?>/g) || [];
+      
+      if (chapterBlocks.length === 0 || chapterHeaders.length === 0) {
+        Alert.alert('No valid chapter blocks found', 'Format: <Chapter 1 - Title> ...background text...');
+        return;
       }
+      
+      const updatedChapters = [...(story.chapters || [])];
+      let chaptersUpdatedCount = 0;
 
-      // Clear form
-      setBulkBackgroundText('');
-      setShowBulkBackground(false);
+      for (let i = 0; i < chapterBlocks.length; i++) {
+        const block = chapterBlocks[i].trim(); // This is the background text
+        const header = chapterHeaders[i];
+        
+        if (!block || !header) continue;
+        
+        // Extract chapter title from header
+        const titleMatch = header.match(/<Chapter \d+ - (.*?)>/);
+        const chapterTitle = titleMatch ? titleMatch[1].trim() : null;
+        
+        if (!chapterTitle) {
+          console.warn('Could not parse title from header:', header);
+          continue;
+        }
 
-      Alert.alert('Success', `Background updated for ${updatedChapters.length} chapters`);
+        // Find the chapter in the story
+        const chapterIndex = updatedChapters.findIndex(ch => ch.title.trim() === chapterTitle);
+        
+        if (chapterIndex === -1) {
+          console.warn(`Chapter not found: "${chapterTitle}"`);
+          continue;
+        }
+
+        // Apply the background text
+        updatedChapters[chapterIndex] = { ...updatedChapters[chapterIndex], background: block };
+        chaptersUpdatedCount++;
+      }
+      
+      if (chaptersUpdatedCount > 0) {
+        await updateDoc(doc(db, 'flowStories', story.id), { chapters: updatedChapters });
+        
+        setBulkBackgroundsText(''); // Clear text
+        setShowBulkBackgrounds(false); // Hide modal
+        await fetchStories(); // Refresh data
+        
+        // Refresh story and chapter state
+        const refreshed = (await getDocs(collection(db, 'flowStories'))).docs.map(d => ({ id: d.id, ...(d.data() as any) })) as FlowStory[];
+        const updatedStory = refreshed.find(s => s.id === story.id) || null;
+        setSelectedStory(updatedStory);
+        if (selectedChapter) {
+          setSelectedChapter(updatedStory?.chapters.find(c => c.id === selectedChapter.id) || null);
+        }
+
+        Alert.alert('Success', `Updated backgrounds for ${chaptersUpdatedCount} chapters`);
+      } else {
+        Alert.alert('No Changes', 'No matching chapters found or no valid background text provided.');
+      }
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Failed to update backgrounds');
     }
   };
-  // *** END NEW FUNCTION ***
+  // *** END UPDATED FUNCTION ***
 
   const handleBulkAddChapters = async () => {
     const story = selectedStory;
@@ -1325,21 +1363,27 @@ const FlowAdminPanel = () => {
               </View>
             )}
 
-            {/* *** NEW SECTION *** */}
+            {/* *** UPDATED SECTION *** */}
             <View style={styles.divider} />
 
-            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Add Background (All Chapters)</Text>
-            <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkBackground(!showBulkBackground)}>
-              <Text style={styles.buttonText}>{showBulkBackground ? 'Hide' : 'Show'} Bulk Background</Text>
+            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Add Backgrounds (By Chapter Name)</Text>
+            <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkBackgrounds(!showBulkBackgrounds)}>
+              <Text style={styles.buttonText}>{showBulkBackgrounds ? 'Hide' : 'Show'} Bulk Backgrounds</Text>
             </TouchableOpacity>
-            {showBulkBackground && (
+            {showBulkBackgrounds && (
               <View style={{ marginTop: 12 }}>
-                <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Paste the background text below. This will apply to ALL chapters in this story.</Text>
+                <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>
+                  Format (finds chapters by name):{'\n'}
+                  {'<Chapter 1 - Chapter Name>'}
+                  {'\nBackground text for chapter 1...'}
+                  {'\n\n<Chapter 2 - Another Chapter>'}
+                  {'\nBackground text for chapter 2...'}
+                </Text>
                 <TextInput 
                   style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 160 }]} 
-                  value={bulkBackgroundText} 
-                  onChangeText={setBulkBackgroundText} 
-                  placeholder="Paste background text..." 
+                  value={bulkBackgroundsText} 
+                  onChangeText={setBulkBackgroundsText} 
+                  placeholder="Paste backgrounds for chapters..." 
                   placeholderTextColor={theme.secondaryText} 
                   multiline 
                   numberOfLines={8} 
@@ -1347,13 +1391,13 @@ const FlowAdminPanel = () => {
                 <TouchableOpacity 
                   style={[styles.button, { backgroundColor: selectedStory ? theme.success : theme.secondaryText }]} 
                   disabled={!selectedStory} 
-                  onPress={handleBulkAddBackground}
+                  onPress={handleBulkAddBackgrounds}
                 >
-                  <Text style={styles.buttonText}>Apply to All Chapters</Text>
+                  <Text style={styles.buttonText}>Apply Backgrounds</Text>
                 </TouchableOpacity>
               </View>
             )}
-            {/* *** END NEW SECTION *** */}
+            {/* *** END UPDATED SECTION *** */}
             </>
           ) : (
             <>
