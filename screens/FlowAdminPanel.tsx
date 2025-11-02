@@ -59,10 +59,14 @@ const FlowAdminPanel = () => {
   const [showBulkChapters, setShowBulkChapters] = useState(false);
   const [bulkChaptersText, setBulkChaptersText] = useState('');
 
-  // *** NEW STATE ***
   // bulk vocab (for multiple chapters by name)
   const [showBulkVocabChapters, setShowBulkVocabChapters] = useState(false);
   const [bulkVocabChaptersText, setBulkVocabChaptersText] = useState('');
+
+  // *** NEW STATE ***
+  // bulk background
+  const [showBulkBackground, setShowBulkBackground] = useState(false);
+  const [bulkBackgroundText, setBulkBackgroundText] = useState('');
   // *** END NEW STATE ***
 
   // story edit state
@@ -381,7 +385,6 @@ const FlowAdminPanel = () => {
     }
   };
 
-  // *** NEW FUNCTION ***
   // This function adds vocab to *multiple chapters* based on chapter names in the text
   const handleBulkAddVocabToChapters = async () => {
     const story = selectedStory;
@@ -460,6 +463,41 @@ const FlowAdminPanel = () => {
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Failed to add vocabulary');
+    }
+  };
+
+  // *** NEW FUNCTION ***
+  const handleBulkAddBackground = async () => {
+    const story = selectedStory;
+    if (!story) { Alert.alert('Select a story first'); return; }
+    if (!bulkBackgroundText.trim()) { Alert.alert('Enter background text'); return; }
+
+    try {
+      const background = bulkBackgroundText.trim();
+      const updatedChapters = story.chapters.map(ch => ({
+        ...ch,
+        background: background,
+      }));
+
+      await updateDoc(doc(db, 'flowStories', story.id), { chapters: updatedChapters });
+
+      // Update local state
+      const updatedStory = { ...story, chapters: updatedChapters };
+      setSelectedStory(updatedStory);
+      setStories(prev => prev.map(s => (s.id === updatedStory.id ? updatedStory : s)));
+      if (selectedChapter) {
+        const updatedChapter = updatedStory.chapters.find(c => c.id === selectedChapter.id) || null;
+        setSelectedChapter(updatedChapter);
+      }
+
+      // Clear form
+      setBulkBackgroundText('');
+      setShowBulkBackground(false);
+
+      Alert.alert('Success', `Background updated for ${updatedChapters.length} chapters`);
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to update backgrounds');
     }
   };
   // *** END NEW FUNCTION ***
@@ -1226,7 +1264,6 @@ const FlowAdminPanel = () => {
 
               <View style={styles.divider} />
 
-              {/* *** NEW SECTION *** */}
               <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Add Bulk Vocab to Chapters</Text>
               <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkVocabChapters(!showBulkVocabChapters)}>
                 <Text style={styles.buttonText}>{showBulkVocabChapters ? 'Hide' : 'Show'} Bulk Vocab</Text>
@@ -1259,7 +1296,6 @@ const FlowAdminPanel = () => {
                   </TouchableOpacity>
                 </View>
               )}
-              {/* *** END NEW SECTION *** */}
 
               <View style={styles.divider} />
 
@@ -1288,6 +1324,36 @@ const FlowAdminPanel = () => {
                 <TouchableOpacity style={[styles.button, { backgroundColor: selectedChapter ? theme.success : theme.secondaryText }]} disabled={!selectedChapter} onPress={handleBulkAddVocab}><Text style={styles.buttonText}>Add Vocabulary</Text></TouchableOpacity>
               </View>
             )}
+
+            {/* *** NEW SECTION *** */}
+            <View style={styles.divider} />
+
+            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Bulk Add Background (All Chapters)</Text>
+            <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => setShowBulkBackground(!showBulkBackground)}>
+              <Text style={styles.buttonText}>{showBulkBackground ? 'Hide' : 'Show'} Bulk Background</Text>
+            </TouchableOpacity>
+            {showBulkBackground && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={{ color: theme.secondaryText, marginBottom: 6 }}>Paste the background text below. This will apply to ALL chapters in this story.</Text>
+                <TextInput 
+                  style={[styles.textArea, { backgroundColor: theme.surfaceColor, color: theme.primaryText, borderColor: theme.borderColor, height: 160 }]} 
+                  value={bulkBackgroundText} 
+                  onChangeText={setBulkBackgroundText} 
+                  placeholder="Paste background text..." 
+                  placeholderTextColor={theme.secondaryText} 
+                  multiline 
+                  numberOfLines={8} 
+                />
+                <TouchableOpacity 
+                  style={[styles.button, { backgroundColor: selectedStory ? theme.success : theme.secondaryText }]} 
+                  disabled={!selectedStory} 
+                  onPress={handleBulkAddBackground}
+                >
+                  <Text style={styles.buttonText}>Apply to All Chapters</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {/* *** END NEW SECTION *** */}
             </>
           ) : (
             <>
