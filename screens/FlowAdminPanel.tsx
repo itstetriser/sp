@@ -1192,6 +1192,72 @@ const FlowAdminPanel = () => {
     setShowExportModal(true);
   };
 
+  // *** NEW FUNCTION ***
+  const handleDownloadAllStories = () => {
+    // 1. Check if on web
+    if (Platform.OS !== 'web') {
+      Alert.alert('Not Supported', 'Download is only available on the web panel.');
+      return;
+    }
+
+    // 2. Check for data
+    if (!stories || stories.length === 0) {
+      Alert.alert('No Data', 'There are no stories to download.');
+      return;
+    }
+
+    console.log(`Formatting all ${stories.length} stories for download...`);
+    let fileContent = "";
+
+    try {
+      // Loop through each story
+      // Sort stories by title for a predictable order
+      const sortedStories = [...stories].sort((a, b) => a.title.localeCompare(b.title));
+
+      for (const story of sortedStories) {
+        const sortedChapters = [...(story.chapters || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+        for (const chapter of sortedChapters) {
+          // This format matches the bulk chapter import
+          const chapterNumber = chapter.order ?? 0; 
+          fileContent += `<Chapter ${chapterNumber} - ${chapter.title}>\n`;
+          
+          if (chapter.questions && chapter.questions.length > 0) {
+            for (const line of chapter.questions) {
+              // This format matches the bulk dialogue import
+              fileContent += `---${line.npcSentence || ''}---${line.correctAnswer || ''}---${line.incorrectAnswer1 || ''}---${line.incorrectAnswer2 || ''}---${line.incorrectAnswer3 || ''}--- /\n`;
+            }
+          }
+          fileContent += `\n`; // Add a space between chapters
+        }
+        // Add a larger space between the *end* of one story's chapters and the *start* of the next.
+        fileContent += `\n\n`; 
+      }
+    } catch (e) {
+      console.error("Error formatting stories:", e);
+      Alert.alert("Error", "Could not format story data.");
+      return;
+    }
+
+    // 3. Create a text file and trigger the download
+    try {
+      const blob = new Blob([fileContent.trim()], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'all_stories_formatted.txt'; // The name of the downloaded file
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log('Download triggered.');
+    } catch (webError) {
+       console.error('Failed to trigger web download:', webError);
+       Alert.alert('Error', 'Failed to create download file.');
+    }
+  };
+  // *** END NEW FUNCTION ***
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <View style={styles.headerContainer}>
@@ -1223,6 +1289,11 @@ const FlowAdminPanel = () => {
           <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={handleSeedDemoStories}>
             <Text style={styles.buttonText}>Seed 3 Demo Stories</Text>
           </TouchableOpacity>
+          {/* *** NEW BUTTON *** */}
+          <TouchableOpacity style={[styles.button, { backgroundColor: theme.success }]} onPress={handleDownloadAllStories}>
+            <Text style={styles.buttonText}>Download All Stories (Formatted)</Text>
+          </TouchableOpacity>
+          {/* *** END NEW BUTTON *** */}
           {selectedStory && (
             <TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={handleExportDialogues}>
               <Text style={styles.buttonText}>Export Dialogues (All Chapters)</Text>
